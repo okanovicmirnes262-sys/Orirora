@@ -1920,14 +1920,112 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
 
 const ORDER_UNITS = ["kom", "kg", "L"];
 
-/* Turn free text (from OCR, a PDF, or manual paste) into clean item names:
-   one item per line, stripped of leading bullets / list numbers, blanks and
-   pure-price/number lines dropped. */
+/* ---- Menu parsing (heuristic, no AI) --------------------------------
+   Two entry points:
+     extractMenuItems(text) — aggressive: used to turn raw OCR / PDF text into a
+        clean starting list (drops prices, section headers and descriptions, and
+        shortens dish preparations like "Hobotnica na žaru" → "Hobotnica").
+     parseItemLines(text)   — lenient: used for the live item count and the final
+        "Add" once the person has curated the textarea (trusts their lines, only
+        strips prices/bullets and shortens preparation).
+   Neither is perfect — the review textarea is always the final say. */
+
+// Common Croatian menu section headers to drop (normalised, no diacritics).
+const MENU_HEADERS = new Set([
+  "predjela", "hladna predjela", "topla predjela", "juhe", "juha", "salate", "salata",
+  "glavna jela", "glavno jelo", "jela", "specijaliteti", "riba", "ribe", "riblja jela",
+  "morski plodovi", "meso", "mesna jela", "rostilj", "sa zara", "tjestenina", "tjestenine",
+  "paste", "njoki", "rizoto", "rizota", "pizza", "pizze", "deserti", "desert", "slastice",
+  "sladoled", "pica", "napitci", "napici", "topli napitci", "hladni napitci",
+  "bezalkoholna pica", "alkoholna pica", "vina", "vino", "bijela vina", "crna vina",
+  "pjenusci", "pivo", "piva", "toceno pivo", "rakije", "rakija", "zestoka pica", "zestica",
+  "kava", "kave", "caj", "cajevi", "prilozi", "prilog", "umaci", "dorucak", "rucak",
+  "vecera", "jelovnik", "cjenik", "cijene", "ponuda", "dnevni meni", "meni", "menu",
+  "a la carte", "dodaci", "sirevi", "sir",
+]);
+
+// Prepositions that introduce a dish's preparation — cut the name here.
+const PREP_CUT = /\s+(?:na|sa|s|u|uz)\s+/i;
+
+function normName(s) {
+  return (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+}
+
+function basicClean(raw) {
+  let s = (raw || "").replace(/\t/g, " ");
+  // leading list numbering / bullets: "1. ", "12) ", "- ", "•"
+  s = s.replace(/^\s*(?:\d{1,3}\s*[.)\-–]\s+|[\-•*·—>]+\s*)/, "");
+  // leading measure/volume: "0,5 l ", "0,33 ", "2 kg " (but not "7 UP")
+  s = s.replace(/^\s*(?:\d{1,2}[.,]\d{1,2}\s*(?:l|dl|cl|ml|g|kg|kom)?|\d{1,2}\s*(?:l|dl|cl|ml|g|kg|kom))\s+/i, "");
+  // trailing allergen markers "(1,3,7)" / "[..]" / "*"
+  s = s.replace(/\s*[([][\d,\s.]+[)\]]\s*$/, "").replace(/\*+\s*$/, "");
+  // trailing dot-leaders + price / volume, applied repeatedly so both a volume
+  // and a price get removed: "Coca Cola 0,33 ... 25 kn" → "Coca Cola"
+  const trailing = /[\s.·•–—]*\b\d{1,4}(?:[.,]\d{1,2})?\s*(?:kn|km|hrk|eur|€|\$|l|dl|cl|ml|g|kg)?\.?\s*$/i;
+  let prev;
+  do { prev = s; s = s.replace(trailing, ""); } while (s !== prev && s.length);
+  return s.replace(/\s{2,}/g, " ").trim();
+}
+
+function simplifyPrep(s) {
+  const m = s.match(PREP_CUT);
+  if (m && m.index >= 2) {
+    const head = s.slice(0, m.index).trim();
+    if (head.length >= 3 && /\p{L}/u.test(head)) return head;
+  }
+  return s;
+}
+
+function isPriceOnly(s) {
+  return /^[\d.,\-€$\s]+(?:kn|km|hrk|eur|€|\$)?\.?$/i.test(s);
+}
+function isHeaderLine(s) {
+  return MENU_HEADERS.has(normName(s.replace(/[·:().]/g, " ").replace(/\s{2,}/g, " ")));
+}
+function looksLikeDescription(s) {
+  const words = s.split(/\s+/).filter(Boolean);
+  const first = (s.match(/\p{L}/u) || [])[0];
+  const startsLower = first && first.toLowerCase() === first && first.toUpperCase() !== first;
+  if (words.length >= 8) return true;                 // very long line → description
+  if (startsLower && words.length >= 3) return true;  // lowercase sentence → description
+  return false;
+}
+
+function finalizeName(s) {
+  return s.replace(/[\s,;:.\-–]+$/, "").trim();
+}
+
+// Aggressive: raw OCR/PDF → curated item names.
+function extractMenuItems(text) {
+  const out = [], seen = new Set();
+  (text || "").split(/\r?\n/).forEach((raw) => {
+    const cleaned = basicClean(raw);
+    if (cleaned.length < 2 || !/\p{L}/u.test(cleaned)) return;
+    if (isPriceOnly(cleaned) || isHeaderLine(cleaned)) return;
+    const simplified = simplifyPrep(cleaned);
+    if (looksLikeDescription(simplified)) return;
+    const name = finalizeName(simplified);
+    const key = normName(name);
+    if (name.length < 2 || !key || isHeaderLine(name) || seen.has(key)) return;
+    seen.add(key);
+    out.push(name);
+  });
+  return out;
+}
+
+// Lenient: curated textarea → final list (trusts the person's lines).
 function parseItemLines(text) {
-  return (text || "")
-    .split(/\r?\n/)
-    .map((l) => l.replace(/^[\s\-•*·.]+/, "").replace(/\s{2,}/g, " ").trim())
-    .filter((l) => l.length > 1 && !/^[\d.,€$\s]+$/.test(l));
+  const out = [], seen = new Set();
+  (text || "").split(/\r?\n/).forEach((raw) => {
+    const cleaned = basicClean(raw);
+    if (cleaned.length < 2 || !/\p{L}/u.test(cleaned) || isPriceOnly(cleaned)) return;
+    const name = finalizeName(simplifyPrep(cleaned));
+    const key = normName(name);
+    if (name.length < 2 || !key || seen.has(key)) return;
+    seen.add(key);
+    out.push(name);
+  });
+  return out;
 }
 
 /* Read an image file with Tesseract (Croatian + English). Loaded on demand so
@@ -2005,7 +2103,7 @@ function ImportItemsModal({ c, onClose, onAdd }) {
         setStatus("Čitam sliku…");
         extracted = await ocrImageFile(file, (p) => setProgress(p));
       }
-      const cleaned = parseItemLines(extracted).join("\n");
+      const cleaned = extractMenuItems(extracted).join("\n");
       setText((prev) => (prev.trim() ? prev + "\n" : "") + cleaned);
       setStatus(cleaned ? "" : "Nije pronađen tekst — upiši artikle ručno ispod.");
     } catch (e) {
@@ -2056,9 +2154,17 @@ function ImportItemsModal({ c, onClose, onAdd }) {
         )}
         {!busy && status && <div style={{ fontSize: 12.5, color: c.textSub, marginBottom: 12 }}>{status}</div>}
 
-        <div style={{ fontSize: 13, color: c.textSub, marginBottom: 6, fontWeight: 500 }}>Items — one per line</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <span style={{ fontSize: 13, color: c.textSub, fontWeight: 500 }}>Items — one per line</span>
+          {text.trim() && (
+            <button onClick={() => setText(extractMenuItems(text).join("\n"))} style={{ background: "none", border: `1px solid ${c.border}`, borderRadius: 8, padding: "4px 10px", cursor: "pointer", color: c.textSub, fontSize: 12, fontWeight: 600 }}>
+              Clean up
+            </button>
+          )}
+        </div>
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7} placeholder={"Coca-Cola\nHobotnica\nMaslinovo ulje"}
           style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box", resize: "vertical", fontFamily: fontStack().body, outline: "none" }} />
+        <div style={{ fontSize: 11.5, color: c.textFaint, marginTop: 5 }}>Tip: paste a menu and tap "Clean up" to drop prices, headers and descriptions, and shorten dish names (e.g. "Hobotnica na žaru" → "Hobotnica").</div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "12px 0 16px" }}>
           <span style={{ fontSize: 13, color: c.textSub }}>Default unit</span>
