@@ -11,6 +11,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar,
   CartesianGrid, Cell
 } from "recharts";
+import { supabase, isSupabaseConfigured, KV_TABLE } from "./supabaseClient";
 
 /* ------------------------------------------------------------------ */
 /*  Design tokens                                                      */
@@ -195,11 +196,22 @@ function relativeTime(ts) {
 /*  Storage                                                             */
 /* ------------------------------------------------------------------ */
 
-/* Persistence is backed by the browser's localStorage. The functions stay
-   async (and keep the legacy `shared` argument) so the rest of the app can
-   keep `await`-ing them unchanged. `shared` is ignored — every key lives in
-   this browser — but the argument is preserved for call-site compatibility. */
-async function loadKey(key, fallback, _shared) {
+/* Persistence is split by the `shared` flag that every call site already
+   passes:
+
+     shared === true   → Supabase `kv_store` table (cloud, synced across every
+                         device that opens the same restaurant): the registry
+                         and all per-restaurant data (accounts, tables,
+                         reservations, shifts, chat, notifications).
+
+     shared === false  → this browser's localStorage (intentionally device-
+                         local): the selected workspace, the "remember me"
+                         session, and the light/dark theme preference.
+
+   Both functions stay async so the rest of the app keeps `await`-ing them
+   unchanged. */
+
+function loadLocal(key, fallback) {
   try {
     if (typeof window === "undefined" || !window.localStorage) return fallback;
     const raw = window.localStorage.getItem(key);
@@ -209,15 +221,51 @@ async function loadKey(key, fallback, _shared) {
     return fallback;
   }
 }
-async function saveKey(key, value, _shared) {
+function saveLocal(key, value) {
   try {
     if (typeof window === "undefined" || !window.localStorage) return;
-    if (value === null || value === undefined) {
-      window.localStorage.removeItem(key);
-    } else {
-      window.localStorage.setItem(key, JSON.stringify(value));
-    }
+    if (value === null || value === undefined) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, JSON.stringify(value));
   } catch (e) { /* ignore quota / private-mode errors */ }
+}
+
+async function loadKey(key, fallback, shared) {
+  if (!shared) return loadLocal(key, fallback);
+  if (!supabase) return fallback;
+  try {
+    const { data, error } = await supabase
+      .from(KV_TABLE)
+      .select("value")
+      .eq("key", key)
+      .maybeSingle();
+    if (error) {
+      console.error("Supabase load failed for", key, error.message);
+      return fallback;
+    }
+    // `value` is a jsonb column, already decoded by supabase-js.
+    if (data && data.value != null) return data.value;
+    return fallback;
+  } catch (e) {
+    console.error("Supabase load threw for", key, e);
+    return fallback;
+  }
+}
+
+async function saveKey(key, value, shared) {
+  if (!shared) { saveLocal(key, value); return; }
+  if (!supabase) return;
+  try {
+    if (value === null || value === undefined) {
+      await supabase.from(KV_TABLE).delete().eq("key", key);
+    } else {
+      const { error } = await supabase
+        .from(KV_TABLE)
+        .upsert({ key, value }, { onConflict: "key" });
+      if (error) console.error("Supabase save failed for", key, error.message);
+    }
+  } catch (e) {
+    console.error("Supabase save threw for", key, e);
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1767,6 +1815,55 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
 }
 
 /* ------------------------------------------------------------------ */
+/*  Configuration screen (shown when Supabase is not set up)           */
+/* ------------------------------------------------------------------ */
+
+function ConfigScreen({ c, isDark, setIsDark }) {
+  const steps = [
+    "Create a free project at supabase.com.",
+    "Open the SQL editor and run the script in supabase/schema.sql from this repo.",
+    "In Settings → API, copy your Project URL and the public anon key.",
+    "Copy .env.example to .env and paste both values in.",
+    "Restart the dev server (npm run dev).",
+  ];
+  return (
+    <div style={{ minHeight: "100dvh", background: c.bg, display: "flex", flexDirection: "column", fontFamily: fontStack().body }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "calc(18px + env(safe-area-inset-top, 0px)) 20px 18px" }}>
+        <IconBtn c={c} onClick={() => setIsDark(!isDark)}>{isDark ? <Sun size={17} /> : <Moon size={17} />}</IconBtn>
+      </div>
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 20px 40px" }}>
+        <div style={{ width: "100%", maxWidth: 440 }}>
+          <div style={{ textAlign: "center", marginBottom: 22 }}>
+            <div style={{ margin: "0 auto 6px", width: 130 }}>
+              <OrdioraLogo c={c} size={130} />
+            </div>
+            <div style={{ color: c.textSub, marginTop: 2, fontSize: 14.5 }}>Connect your Supabase backend to get started.</div>
+          </div>
+          <SectionCard c={c}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <KeyRound size={18} color={c.textSub} />
+              <span style={{ fontWeight: 700, fontSize: 15, color: c.text }}>Set up in 5 steps</span>
+            </div>
+            {steps.map((s, i) => (
+              <div key={i} style={{ display: "flex", gap: 12, padding: "9px 0", borderTop: i ? `1px solid ${c.border}` : "none" }}>
+                <div style={{
+                  width: 24, height: 24, borderRadius: 999, flexShrink: 0, display: "flex", alignItems: "center",
+                  justifyContent: "center", background: c.text, color: c.bg, fontSize: 12, fontWeight: 700,
+                }}>{i + 1}</div>
+                <div style={{ fontSize: 13.5, color: c.text, lineHeight: 1.5, paddingTop: 2 }}>{s}</div>
+              </div>
+            ))}
+          </SectionCard>
+          <div style={{ fontSize: 12, color: c.textFaint, textAlign: "center", marginTop: 16, lineHeight: 1.6 }}>
+            Full instructions are in the project README. Use only the public anon key here — never the service_role key.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  App root                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -1933,6 +2030,10 @@ export default function App() {
       return next;
     });
   };
+
+  if (!isSupabaseConfigured) {
+    return <ConfigScreen c={c} isDark={isDark} setIsDark={setIsDark} />;
+  }
 
   if (!loaded) {
     return (
