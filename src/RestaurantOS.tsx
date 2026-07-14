@@ -5,7 +5,8 @@ import {
   ChefHat, UtensilsCrossed, Phone, Mail, User as UserIcon, LayoutGrid,
   Settings as SettingsIcon, ArrowUpRight, ArrowDownRight, Wine, MoreHorizontal,
   CircleUser, Loader2, ChevronDown, Trash2, Copy, CheckCircle2, Store,
-  KeyRound, Search, Eye, EyeOff, Pencil, Filter
+  KeyRound, Search, Eye, EyeOff, Pencil, Filter,
+  ShoppingCart, Upload, Download, Minus, FileText, Image as ImageIcon
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar,
@@ -494,7 +495,7 @@ function BottomNav({ view, setView, c }) {
       borderTop: `1px solid ${c.border}`, padding: "10px 6px calc(14px + env(safe-area-inset-bottom, 0px))", justifyContent: "space-around", zIndex: 20,
     }}>
       {NAV_ITEMS.map((item) => {
-        const activeSet = item.key === "more" ? ["more", "shifts", "staff", "settings"].includes(view) : view === item.key;
+        const activeSet = item.key === "more" ? ["more", "shifts", "staff", "settings", "orders"].includes(view) : view === item.key;
         const Icon = item.icon;
         return (
           <button key={item.key} onClick={() => setView(item.key)} style={{
@@ -1667,6 +1668,7 @@ function StaffScreen({ c, staff, setStaff, user, restaurant }) {
 
 function MoreScreen({ c, user, restaurant, setView, isDark, setIsDark, onSignOut, onSwitchWorkspace }) {
   const rows = [
+    { label: "Order supplies", icon: ShoppingCart, accent: c.green, action: () => setView("orders") },
     { label: "Shifts", icon: Clock, accent: c.amber, action: () => setView("shifts") },
     { label: "Team", icon: Users, accent: c.blue, action: () => setView("staff") },
     { label: "Settings", icon: SettingsIcon, accent: c.violet, action: () => setView("settings") },
@@ -1815,6 +1817,323 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
 }
 
 /* ------------------------------------------------------------------ */
+/*  Supplies ordering — catalog + import (OCR / PDF) + CSV export       */
+/* ------------------------------------------------------------------ */
+
+const ORDER_UNITS = ["kom", "kg", "L"];
+
+/* Turn free text (from OCR, a PDF, or manual paste) into clean item names:
+   one item per line, stripped of leading bullets / list numbers, blanks and
+   pure-price/number lines dropped. */
+function parseItemLines(text) {
+  return (text || "")
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^[\s\-•*·.]+/, "").replace(/\s{2,}/g, " ").trim())
+    .filter((l) => l.length > 1 && !/^[\d.,€$\s]+$/.test(l));
+}
+
+/* Read an image file with Tesseract (Croatian + English). Loaded on demand so
+   it never weighs down the initial bundle. */
+async function ocrImageFile(file, onProgress) {
+  const Tesseract = await import("tesseract.js");
+  const opts = { logger: (m) => { if (m.status === "recognizing text" && onProgress) onProgress(m.progress); } };
+  try {
+    const { data } = await Tesseract.recognize(file, "hrv+eng", opts);
+    return data.text || "";
+  } catch (e) {
+    // Croatian traineddata may be unavailable — fall back to English only.
+    const { data } = await Tesseract.recognize(file, "eng", opts);
+    return data.text || "";
+  }
+}
+
+/* Extract embedded text from a (digital) PDF via pdf.js. Loaded on demand. */
+async function pdfTextFromFile(file) {
+  const pdfjs = await import("pdfjs-dist");
+  const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+  const buf = await file.arrayBuffer();
+  const doc = await pdfjs.getDocument({ data: buf }).promise;
+  let text = "";
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const content = await page.getTextContent();
+    text += content.items.map((i) => (i.str || "")).join(" ") + "\n";
+    page.cleanup();
+  }
+  return text;
+}
+
+function csvField(v) {
+  const s = String(v == null ? "" : v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/* Build a CSV (with a UTF-8 BOM so Excel reads č/ž/š correctly). */
+function buildOrderCsv(rows) {
+  const header = ["Artikl", "Količina", "Jedinica"];
+  const lines = [header, ...rows.map((r) => [r.name, r.qty, r.unit])];
+  return "﻿" + lines.map((l) => l.map(csvField).join(",")).join("\r\n");
+}
+
+function triggerDownload(filename, text, mime) {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function ImportItemsModal({ c, onClose, onAdd }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState("");
+  const [defaultUnit, setDefaultUnit] = useState("kom");
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    setBusy(true); setProgress(0); setStatus("");
+    try {
+      let extracted = "";
+      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+        setStatus("Čitam PDF…");
+        extracted = await pdfTextFromFile(file);
+      } else {
+        setStatus("Čitam sliku…");
+        extracted = await ocrImageFile(file, (p) => setProgress(p));
+      }
+      const cleaned = parseItemLines(extracted).join("\n");
+      setText((prev) => (prev.trim() ? prev + "\n" : "") + cleaned);
+      setStatus(cleaned ? "" : "Nije pronađen tekst — upiši artikle ručno ispod.");
+    } catch (e) {
+      setStatus("Automatsko čitanje nije uspjelo — zalijepi ili upiši artikle ručno ispod.");
+    } finally {
+      setBusy(false); setProgress(0);
+    }
+  };
+
+  const parsed = parseItemLines(text);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: c.surface, width: "100%", maxWidth: 520, margin: "0 auto", borderRadius: "24px 24px 0 0",
+        padding: "22px 22px calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "90dvh", overflowY: "auto", fontFamily: fontStack().body,
+      }}>
+        <div style={{ fontWeight: 700, fontSize: 17, color: c.text, marginBottom: 4 }}>Import items</div>
+        <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>
+          Snap a photo of the menu or pick a PDF — we'll read the text. Then review the list before adding.
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <label style={{
+            flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+            padding: "16px 8px", borderRadius: 14, border: `1.5px dashed ${c.border}`, background: c.surfaceAlt, cursor: busy ? "default" : "pointer",
+          }}>
+            <ImageIcon size={20} color={c.textSub} />
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: c.text }}>Photo</span>
+            <input type="file" accept="image/*" capture="environment" disabled={busy} style={{ display: "none" }}
+              onChange={(e) => handleFile(e.target.files?.[0])} />
+          </label>
+          <label style={{
+            flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+            padding: "16px 8px", borderRadius: 14, border: `1.5px dashed ${c.border}`, background: c.surfaceAlt, cursor: busy ? "default" : "pointer",
+          }}>
+            <FileText size={20} color={c.textSub} />
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: c.text }}>PDF</span>
+            <input type="file" accept="application/pdf,.pdf" disabled={busy} style={{ display: "none" }}
+              onChange={(e) => handleFile(e.target.files?.[0])} />
+          </label>
+        </div>
+
+        {busy && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, color: c.textSub, fontSize: 13 }}>
+            <Loader2 size={15} className="spin" /> {status || "Reading…"}{progress > 0 ? ` ${Math.round(progress * 100)}%` : ""}
+          </div>
+        )}
+        {!busy && status && <div style={{ fontSize: 12.5, color: c.textSub, marginBottom: 12 }}>{status}</div>}
+
+        <div style={{ fontSize: 13, color: c.textSub, marginBottom: 6, fontWeight: 500 }}>Items — one per line</div>
+        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7} placeholder={"Coca-Cola\nHobotnica\nMaslinovo ulje"}
+          style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box", resize: "vertical", fontFamily: fontStack().body, outline: "none" }} />
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "12px 0 16px" }}>
+          <span style={{ fontSize: 13, color: c.textSub }}>Default unit</span>
+          <div style={{ display: "flex", gap: 6 }}>
+            {ORDER_UNITS.map((u) => (
+              <button key={u} onClick={() => setDefaultUnit(u)} style={{
+                padding: "6px 12px", borderRadius: 999, cursor: "pointer", fontSize: 13, fontWeight: 600,
+                border: `1px solid ${defaultUnit === u ? c.text : c.border}`, background: defaultUnit === u ? c.text : c.surface, color: defaultUnit === u ? c.bg : c.textSub,
+              }}>{u}</button>
+            ))}
+          </div>
+        </div>
+
+        <PrimaryButton c={c} full disabled={parsed.length === 0} onClick={() => { onAdd(parsed, defaultUnit); onClose(); }}>
+          <Plus size={16} /> Add {parsed.length > 0 ? parsed.length : ""} item{parsed.length === 1 ? "" : "s"}
+        </PrimaryButton>
+        <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
+      </div>
+    </div>
+  );
+}
+
+function OrderingScreen({ c, products, setProducts, orderDraft, setOrderDraft, restaurant }) {
+  const [importing, setImporting] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newUnit, setNewUnit] = useState("kom");
+  const [removeTarget, setRemoveTarget] = useState(null);
+
+  const setQty = (id, qty) => setOrderDraft((prev) => {
+    const n = Math.max(0, Number(qty) || 0);
+    const next = { ...prev };
+    if (n <= 0) delete next[id]; else next[id] = n;
+    return next;
+  });
+  const step = (id, delta) => setQty(id, (Number(orderDraft[id]) || 0) + delta);
+
+  const setUnit = (id, unit) => setProducts((prev) => prev.map((p) => p.id === id ? { ...p, unit } : p));
+
+  const addManual = () => {
+    const name = newName.trim();
+    if (!name) return;
+    if (!products.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+      setProducts((prev) => [...prev, { id: uid(), name, unit: newUnit }]);
+    }
+    setNewName("");
+  };
+
+  const addMany = (names, unit) => {
+    setProducts((prev) => {
+      const have = new Set(prev.map((p) => p.name.toLowerCase()));
+      const fresh = [];
+      names.forEach((name) => {
+        const key = name.toLowerCase();
+        if (!have.has(key)) { have.add(key); fresh.push({ id: uid(), name, unit }); }
+      });
+      return [...prev, ...fresh];
+    });
+  };
+
+  const confirmRemove = () => {
+    const id = removeTarget.id;
+    setProducts((prev) => prev.filter((p) => p.id !== id));
+    setOrderDraft((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    setRemoveTarget(null);
+  };
+
+  const orderRows = products
+    .filter((p) => (Number(orderDraft[p.id]) || 0) > 0)
+    .map((p) => ({ name: p.name, qty: orderDraft[p.id], unit: p.unit }));
+  const orderCount = orderRows.length;
+
+  const dateStr = new Date().toISOString().slice(0, 10);
+
+  const exportCsv = () => {
+    if (!orderRows.length) return;
+    triggerDownload(`narudzba-${slugify(restaurant?.name || "restaurant")}-${dateStr}.csv`, buildOrderCsv(orderRows), "text/csv;charset=utf-8;");
+  };
+
+  const emailOrder = () => {
+    if (!orderRows.length) return;
+    const body =
+      "Poštovani,\n\nMolim isporuku sljedeće robe:\n\n" +
+      orderRows.map((r) => `- ${r.name}: ${r.qty} ${r.unit}`).join("\n") +
+      `\n\nHvala,\n${restaurant?.name || ""}`;
+    window.location.href = `mailto:?subject=${encodeURIComponent(`Narudžba robe — ${restaurant?.name || ""} (${dateStr})`)}&body=${encodeURIComponent(body)}`;
+  };
+
+  const clearOrder = () => setOrderDraft({});
+
+  return (
+    <div style={{ padding: "0 20px 24px" }}>
+      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 2px" }}>Order supplies</div>
+      <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 16 }}>Build a supplier order and export it as a table.</div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <GhostButton c={c} onClick={() => setImporting(true)} style={{ flex: 1, padding: "12px 10px" }}>
+          <Upload size={16} /> Import
+        </GhostButton>
+        <PrimaryButton c={c} onClick={exportCsv} disabled={orderCount === 0} style={{ flex: 1, padding: "13px 10px" }}>
+          <Download size={16} /> Export CSV
+        </PrimaryButton>
+      </div>
+
+      {orderCount > 0 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: c.surfaceAlt, borderRadius: 14, padding: "12px 14px", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: c.text, fontWeight: 600 }}>
+            <ShoppingCart size={15} color={c.textSub} /> {orderCount} item{orderCount === 1 ? "" : "s"} in order
+          </div>
+          <div style={{ display: "flex", gap: 14 }}>
+            <button onClick={emailOrder} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+              <Mail size={14} /> Email
+            </button>
+            <button onClick={clearOrder} style={{ background: "none", border: "none", cursor: "pointer", color: c.rose, fontSize: 12.5, fontWeight: 600 }}>Clear</button>
+          </div>
+        </div>
+      )}
+
+      {/* Quick manual add */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addManual()}
+          placeholder="Add an item (e.g. Coca-Cola)"
+          style={{ flex: 1, minWidth: 0, padding: "12px 14px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box", outline: "none" }} />
+        <select value={newUnit} onChange={(e) => setNewUnit(e.target.value)}
+          style={{ padding: "12px 10px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }}>
+          {ORDER_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+        </select>
+        <button onClick={addManual} disabled={!newName.trim()} style={{ width: 46, borderRadius: 12, border: "none", background: newName.trim() ? c.cta : c.textFaint, color: c.ctaText, cursor: newName.trim() ? "pointer" : "default", flexShrink: 0 }}>
+          <Plus size={18} style={{ margin: "0 auto" }} />
+        </button>
+      </div>
+
+      {products.length === 0 ? (
+        <EmptyState c={c} icon={ShoppingCart} title="No items yet"
+          message="Import your goods from a menu photo or PDF, or add them one by one above."
+          actionLabel="Import from photo / PDF" onAction={() => setImporting(true)} />
+      ) : (
+        products.map((p) => {
+          const qty = Number(orderDraft[p.id]) || 0;
+          const inOrder = qty > 0;
+          return (
+            <div key={p.id} style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 14, marginBottom: 8,
+              border: `1px solid ${inOrder ? c.text : c.border}`, background: inOrder ? c.surfaceAlt : c.surface,
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14.5, color: c.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                <select value={p.unit} onChange={(e) => setUnit(p.id, e.target.value)}
+                  style={{ marginTop: 2, padding: "2px 4px", borderRadius: 8, border: `1px solid ${c.border}`, background: "transparent", color: c.textSub, fontSize: 12 }}>
+                  {ORDER_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button onClick={() => step(p.id, -1)} style={{ width: 30, height: 30, borderRadius: 9, border: `1px solid ${c.border}`, background: c.surface, color: c.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Minus size={14} /></button>
+                <input value={qty || ""} onChange={(e) => setQty(p.id, e.target.value)} inputMode="decimal" placeholder="0"
+                  style={{ width: 46, textAlign: "center", padding: "7px 4px", borderRadius: 9, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
+                <button onClick={() => step(p.id, 1)} style={{ width: 30, height: 30, borderRadius: 9, border: `1px solid ${c.border}`, background: c.surface, color: c.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Plus size={14} /></button>
+              </div>
+              <button onClick={() => setRemoveTarget(p)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textFaint, flexShrink: 0 }}><Trash2 size={15} /></button>
+            </div>
+          );
+        })
+      )}
+
+      {importing && <ImportItemsModal c={c} onClose={() => setImporting(false)} onAdd={addMany} />}
+      {removeTarget && (
+        <ConfirmDialog c={c} title={`Remove ${removeTarget.name}?`} message="This item will be removed from your catalog and any current order."
+          confirmLabel="Remove" onCancel={() => setRemoveTarget(null)} onConfirm={confirmRemove} />
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Configuration screen (shown when Supabase is not set up)           */
 /* ------------------------------------------------------------------ */
 
@@ -1886,12 +2205,14 @@ export default function App() {
   const [shifts, setShifts] = useState([]);
   const [chat, setChat] = useState({ general: [], floor: [], kitchen: [] });
   const [notifications, setNotifications] = useState([]);
+  const [products, setProducts] = useState([]);     // supplies catalog
+  const [orderDraft, setOrderDraft] = useState({});  // { productId: quantity }
 
   // Loads every piece of data scoped to one restaurant's workspace, and
   // attempts an auto-login if a remembered session matches this workspace.
   const loadWorkspaceData = async (slug) => {
     const scoped = (key, fallback) => loadKey(`restaurantos:${slug}:${key}`, fallback, true);
-    const [rest, accs, tbls, res, sh, ch, notifs, remembered] = await Promise.all([
+    const [rest, accs, tbls, res, sh, ch, notifs, prods, draft, remembered] = await Promise.all([
       scoped("restaurant", null),
       scoped("accounts", []),
       scoped("tables", []),
@@ -1899,6 +2220,8 @@ export default function App() {
       scoped("shifts", []),
       scoped("chat", { general: [], floor: [], kitchen: [] }),
       scoped("notifications", []),
+      scoped("products", []),
+      scoped("orderDraft", {}),
       loadKey("restaurantos:remembered", null, false),
     ]);
     setRestaurant(rest);
@@ -1908,6 +2231,8 @@ export default function App() {
     setShifts(sh);
     setChat(ch);
     setNotifications(notifs);
+    setProducts(prods);
+    setOrderDraft(draft);
     if (remembered && remembered.slug === slug) {
       const match = accs.find((a) => a.email === remembered.email && a.password === remembered.password);
       if (match) setUser(match);
@@ -1938,6 +2263,8 @@ export default function App() {
   useEffect(() => { if (loaded && workspace) saveKey(`restaurantos:${workspace.slug}:shifts`, shifts, true); }, [shifts, loaded, workspace]);
   useEffect(() => { if (loaded && workspace) saveKey(`restaurantos:${workspace.slug}:chat`, chat, true); }, [chat, loaded, workspace]);
   useEffect(() => { if (loaded && workspace) saveKey(`restaurantos:${workspace.slug}:notifications`, notifications, true); }, [notifications, loaded, workspace]);
+  useEffect(() => { if (loaded && workspace) saveKey(`restaurantos:${workspace.slug}:products`, products, true); }, [products, loaded, workspace]);
+  useEffect(() => { if (loaded && workspace) saveKey(`restaurantos:${workspace.slug}:orderDraft`, orderDraft, true); }, [orderDraft, loaded, workspace]);
   useEffect(() => { if (loaded) saveKey("restaurantos:theme", { isDark }, false); }, [isDark, loaded]);
 
   const c = PALETTE[isDark ? "dark" : "light"];
@@ -1983,6 +2310,8 @@ export default function App() {
     setShifts([]);
     setChat({ general: [], floor: [], kitchen: [] });
     setNotifications([]);
+    setProducts([]);
+    setOrderDraft({});
     setView("dashboard");
     saveKey("restaurantos:workspace", null, false);
     saveKey("restaurantos:remembered", null, false);
@@ -2066,7 +2395,7 @@ export default function App() {
   const titleMap = {
     dashboard: "Dashboard", reservations: "Reservations", chat: "Chat",
     analytics: user.role === "owner" ? "Analytics" : "My Analytics",
-    more: "More", shifts: "Shifts", staff: "Team", settings: "Settings",
+    more: "More", shifts: "Shifts", staff: "Team", settings: "Settings", orders: "Order supplies",
   };
 
   return (
@@ -2095,6 +2424,7 @@ export default function App() {
           {view === "staff" && <StaffScreen c={c} staff={accounts} setStaff={setAccounts} user={user} restaurant={restaurant} />}
           {view === "more" && <MoreScreen c={c} user={user} restaurant={restaurant} setView={setView} isDark={isDark} setIsDark={setIsDark} onSignOut={signOut} onSwitchWorkspace={switchWorkspace} />}
           {view === "settings" && <SettingsScreen c={c} user={user} isDark={isDark} setIsDark={setIsDark} restaurant={restaurant} setRestaurant={updateRestaurant} tables={tables} setTables={setTables} accounts={accounts} setAccounts={setAccounts} />}
+          {view === "orders" && <OrderingScreen c={c} products={products} setProducts={setProducts} orderDraft={orderDraft} setOrderDraft={setOrderDraft} restaurant={restaurant} />}
         </div>
         <BottomNav view={view} setView={setView} c={c} />
       </div>

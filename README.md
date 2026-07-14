@@ -12,6 +12,10 @@ data syncs across every device that opens the same restaurant.
 - **Shifts** — weekly staff scheduling.
 - **Chat** — general / floor / kitchen channels.
 - **Analytics** — reservation trends, peak hours, status breakdown.
+- **Order supplies** — build a supplier order from a goods catalog, set
+  quantities in kom / kg / L, and export a CSV table (opens in Google Sheets /
+  Excel) or draft an email to the supplier. Populate the catalog by snapping a
+  photo of a menu (OCR) or importing a PDF, with an editable review step.
 - **Light / dark** theme.
 
 ## Getting started
