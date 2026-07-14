@@ -591,7 +591,12 @@ function TableManager({ c, tables, setTables, compact }) {
 
 function WorkspacePicker({ c, isDark, setIsDark, registry, onSelect, onCreateNew }) {
   const [search, setSearch] = useState("");
-  const filtered = registry.filter((r) => r.name.toLowerCase().includes(search.trim().toLowerCase()));
+  const query = search.trim().toLowerCase();
+  // Privacy: never list the registered restaurants. Only reveal a match once
+  // the person types (at least 2 characters of) the restaurant's name, so
+  // others can't see which restaurants exist here.
+  const canSearch = query.length >= 2;
+  const filtered = canSearch ? registry.filter((r) => r.name.toLowerCase().includes(query)) : [];
 
   return (
     <div style={{ minHeight: "100dvh", background: c.bg, display: "flex", flexDirection: "column", fontFamily: fontStack().body }}>
@@ -611,9 +616,9 @@ function WorkspacePicker({ c, isDark, setIsDark, registry, onSelect, onCreateNew
             rightIcon={<Search size={16} color={c.textFaint} />} />
 
           <div style={{ marginBottom: 22 }}>
-            {registry.length === 0 ? (
+            {!canSearch ? (
               <div style={{ fontSize: 13, color: c.textFaint, textAlign: "center", padding: "10px 0 18px" }}>
-                No restaurants have been set up here yet.
+                Type your restaurant's name to find it.
               </div>
             ) : filtered.length === 0 ? (
               <div style={{ fontSize: 13, color: c.textFaint, textAlign: "center", padding: "10px 0 18px" }}>
@@ -2410,6 +2415,12 @@ export default function App() {
         button { touch-action: manipulation; }
         /* Prevent iOS auto-zoom on focus — keep inputs at 16px+ */
         input, select, textarea { font-size: 16px; }
+        /* Left-align native date/time inputs — iOS centers their value by
+           default, which looked misaligned next to the text/number fields. */
+        input[type="date"], input[type="time"] { text-align: left; }
+        input::-webkit-date-and-time-value { text-align: left; margin: 0; }
+        input[type="date"]::-webkit-datetime-edit,
+        input[type="time"]::-webkit-datetime-edit { text-align: left; }
       `}</style>
 
       <div style={{ maxWidth: 520, margin: "0 auto", width: "100%", flex: 1, display: "flex", flexDirection: "column" }}>
