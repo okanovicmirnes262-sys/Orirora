@@ -586,17 +586,27 @@ function TableManager({ c, tables, setTables, compact }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Workspace picker (choose or create a restaurant)                   */
+/*  Login (exact restaurant name + password)                           */
 /* ------------------------------------------------------------------ */
 
-function WorkspacePicker({ c, isDark, setIsDark, registry, onSelect, onCreateNew }) {
-  const [search, setSearch] = useState("");
-  const query = search.trim().toLowerCase();
-  // Privacy: never list the registered restaurants. Only reveal a match once
-  // the person types (at least 2 characters of) the restaurant's name, so
-  // others can't see which restaurants exist here.
-  const canSearch = query.length >= 2;
-  const filtered = canSearch ? registry.filter((r) => r.name.toLowerCase().includes(query)) : [];
+/* Access requires the EXACT restaurant name plus a valid password — the app
+   never lists or reveals which restaurants exist, and the password alone
+   identifies which staff account is signing in. */
+function LoginScreen({ c, isDark, setIsDark, onLogin, onCreateNew }) {
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    setError("");
+    if (!name.trim() || !password) { setError("Enter your restaurant name and password."); return; }
+    setLoading(true);
+    const res = await onLogin(name, password, remember);
+    setLoading(false);
+    if (!res || !res.ok) setError("Incorrect restaurant name or password.");
+  };
 
   return (
     <div style={{ minHeight: "100dvh", background: c.bg, display: "flex", flexDirection: "column", fontFamily: fontStack().body }}>
@@ -604,47 +614,40 @@ function WorkspacePicker({ c, isDark, setIsDark, registry, onSelect, onCreateNew
         <IconBtn c={c} onClick={() => setIsDark(!isDark)}>{isDark ? <Sun size={17} /> : <Moon size={17} />}</IconBtn>
       </div>
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 20px 40px" }}>
-        <div style={{ width: "100%", maxWidth: 420 }}>
-          <div style={{ textAlign: "center", marginBottom: 30 }}>
-            <div style={{ margin: "0 auto 6px", width: 150 }}>
-              <OrdioraLogo c={c} size={150} />
+        <div style={{ width: "100%", maxWidth: 400 }}>
+          <div style={{ textAlign: "center", marginBottom: 26 }}>
+            <div style={{ margin: "0 auto 4px", width: 160 }}>
+              <OrdioraLogo c={c} size={160} />
             </div>
-            <div style={{ color: c.textSub, marginTop: 2, fontSize: 14.5 }}>Find your restaurant, or set up a new one.</div>
+            <div style={{ color: c.textSub, marginTop: 2, fontSize: 15 }}>Sign in to your restaurant.</div>
           </div>
 
-          <TextInput c={c} value={search} onChange={setSearch} placeholder="Search by restaurant name"
-            rightIcon={<Search size={16} color={c.textFaint} />} />
+          <TextInput c={c} label="Restaurant name" value={name} onChange={setName} placeholder="Your exact restaurant name" />
+          <TextInput c={c} label="Password" value={password} onChange={setPassword} placeholder="Password" type="password" error={error} />
 
-          <div style={{ marginBottom: 22 }}>
-            {!canSearch ? (
-              <div style={{ fontSize: 13, color: c.textFaint, textAlign: "center", padding: "10px 0 18px" }}>
-                Type your restaurant's name to find it.
-              </div>
-            ) : filtered.length === 0 ? (
-              <div style={{ fontSize: 13, color: c.textFaint, textAlign: "center", padding: "10px 0 18px" }}>
-                No restaurant matches "{search}".
-              </div>
-            ) : (
-              filtered.slice(0, 8).map((r) => (
-                <button key={r.slug} onClick={() => onSelect(r.slug, r.name)} style={{
-                  width: "100%", textAlign: "left", padding: "14px 16px", borderRadius: 14, border: `1px solid ${c.border}`,
-                  background: c.surface, marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
-                }}>
-                  <div style={{ width: 34, height: 34, borderRadius: 10, background: c.surfaceAlt, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Store size={15} color={c.textSub} />
-                  </div>
-                  <span style={{ fontWeight: 600, fontSize: 14.5, color: c.text, flex: 1 }}>{r.name}</span>
-                  <ChevronRight size={15} color={c.textFaint} />
-                </button>
-              ))
-            )}
-          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginBottom: 18 }}>
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={{ width: 17, height: 17, accentColor: c.text }} />
+            <span style={{ fontSize: 13, color: c.textSub }}>Remember me on this device</span>
+          </label>
 
-          <PrimaryButton c={c} full onClick={onCreateNew}>
-            <Plus size={15} /> Set up a new restaurant
+          <PrimaryButton c={c} full onClick={submit} disabled={loading} style={{ marginTop: 4 }}>
+            {loading ? <><Loader2 size={16} className="spin" /> Signing in…</> : "Sign in"}
           </PrimaryButton>
+          <div style={{ textAlign: "center", fontSize: 12.5, color: c.textFaint, marginTop: 16, lineHeight: 1.6 }}>
+            New team member? Ask your restaurant owner for your<br />login — they'll share your password with you.
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "22px 0 18px" }}>
+            <div style={{ flex: 1, height: 1, background: c.border }} />
+            <span style={{ fontSize: 12, color: c.textFaint }}>or</span>
+            <div style={{ flex: 1, height: 1, background: c.border }} />
+          </div>
+          <GhostButton c={c} full onClick={onCreateNew}>
+            <Plus size={15} /> Set up a new restaurant
+          </GhostButton>
         </div>
       </div>
+      <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
     </div>
   );
 }
@@ -777,71 +780,6 @@ function SetupWizard({ c, isDark, setIsDark, onComplete, onCancel }) {
               </PrimaryButton>
             )}
           </div>
-        </div>
-      </div>
-      <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Sign in screen                                                      */
-/* ------------------------------------------------------------------ */
-
-function SignInScreen({ c, isDark, setIsDark, restaurant, accounts, onLogin, onSwitchWorkspace }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const submit = () => {
-    setError("");
-    const account = accounts.find((a) => a.email.toLowerCase() === email.trim().toLowerCase() && a.password === password);
-    if (!account) {
-      setError("Incorrect email or password.");
-      return;
-    }
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      onLogin(account, remember);
-    }, 500);
-  };
-
-  return (
-    <div style={{ minHeight: "100dvh", background: c.bg, display: "flex", flexDirection: "column", fontFamily: fontStack().body }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", padding: "calc(18px + env(safe-area-inset-top, 0px)) 20px 18px" }}>
-        <IconBtn c={c} onClick={() => setIsDark(!isDark)}>{isDark ? <Sun size={17} /> : <Moon size={17} />}</IconBtn>
-      </div>
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 20px" }}>
-        <div style={{ width: "100%", maxWidth: 400 }}>
-          <div style={{ textAlign: "center", marginBottom: 26 }}>
-            <div style={{ margin: "0 auto 4px", width: 160 }}>
-              <OrdioraLogo c={c} size={160} />
-            </div>
-            <div style={{ color: c.textSub, marginTop: 2, fontSize: 15 }}>{restaurant?.name || "Precision command center"}</div>
-          </div>
-
-          <TextInput c={c} label="Email" value={email} onChange={setEmail} placeholder="you@restaurant.com" />
-          <TextInput c={c} label="Password" value={password} onChange={setPassword} placeholder="Password" type="password" error={error} />
-
-          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginBottom: 18 }}>
-            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={{ width: 17, height: 17, accentColor: c.text }} />
-            <span style={{ fontSize: 13, color: c.textSub }}>Remember me on this device</span>
-          </label>
-
-          <PrimaryButton c={c} full onClick={submit} disabled={loading} style={{ marginTop: 4 }}>
-            {loading ? <><Loader2 size={16} className="spin" /> Signing in…</> : "Sign in"}
-          </PrimaryButton>
-          <div style={{ textAlign: "center", fontSize: 12.5, color: c.textFaint, marginTop: 16, lineHeight: 1.6 }}>
-            New team member? Ask your restaurant owner to add you<br />under Team — they'll share your login with you.
-          </div>
-          {onSwitchWorkspace && (
-            <button onClick={onSwitchWorkspace} style={{ display: "block", margin: "18px auto 0", background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600, textDecoration: "underline" }}>
-              Not your restaurant? Switch
-            </button>
-          )}
         </div>
       </div>
       <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
@@ -1539,7 +1477,7 @@ function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
 
 function CredentialsModal({ c, account, restaurant, onClose }) {
   const [copied, setCopied] = useState(false);
-  const text = `ORDIORA login for ${restaurant.name}\nEmail: ${account.email}\nPassword: ${account.password}`;
+  const text = `ORDIORA login for ${restaurant.name}\nRestaurant: ${restaurant.name}\nPassword: ${account.password}`;
   const copy = () => {
     try { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (e) {}
   };
@@ -1550,10 +1488,10 @@ function CredentialsModal({ c, account, restaurant, onClose }) {
           <CheckCircle2 size={22} color={c.green} />
         </div>
         <div style={{ fontWeight: 700, fontSize: 18, color: c.text, marginBottom: 4 }}>{account.name} added</div>
-        <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 18 }}>Share these login details with them. You can view this password again anytime from the Team list.</div>
+        <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 18 }}>Share these login details with them — they sign in with the restaurant name and this password. You can view the password again anytime from the Team list.</div>
         <div style={{ background: c.surfaceAlt, borderRadius: 14, padding: 16, marginBottom: 18 }}>
-          <div style={{ fontSize: 11, color: c.textFaint, fontWeight: 700, letterSpacing: "0.05em", marginBottom: 3 }}>EMAIL</div>
-          <div style={{ fontSize: 14.5, color: c.text, fontWeight: 600, marginBottom: 12 }}>{account.email}</div>
+          <div style={{ fontSize: 11, color: c.textFaint, fontWeight: 700, letterSpacing: "0.05em", marginBottom: 3 }}>RESTAURANT</div>
+          <div style={{ fontSize: 14.5, color: c.text, fontWeight: 600, marginBottom: 12 }}>{restaurant.name}</div>
           <div style={{ fontSize: 11, color: c.textFaint, fontWeight: 700, letterSpacing: "0.05em", marginBottom: 3 }}>PASSWORD</div>
           <div style={{ fontSize: 14.5, color: c.text, fontWeight: 600, fontFamily: "monospace" }}>{account.password}</div>
         </div>
@@ -2299,10 +2237,24 @@ export default function App() {
     if (remember) saveKey("restaurantos:remembered", { slug, email: owner.email, password: owner.password }, false);
   };
 
-  const selectWorkspace = async (slug, name) => {
-    await loadWorkspaceData(slug);
-    setWorkspace({ slug, name });
-    saveKey("restaurantos:workspace", { slug, name }, false);
+  // Access requires the EXACT restaurant name plus a valid password. The
+  // registry is never shown; a name is only ever resolved when the person
+  // already knows it, and the password identifies which account signs in.
+  const loginWithNameAndPassword = async (name, password, remember) => {
+    const target = (name || "").trim().toLowerCase();
+    const entry = registry.find((r) => (r.name || "").trim().toLowerCase() === target);
+    if (!entry) return { ok: false };
+    const accs = await loadKey(`restaurantos:${entry.slug}:accounts`, [], true);
+    const account = accs.find((a) => a.password === password);
+    if (!account) return { ok: false };
+    await loadWorkspaceData(entry.slug);
+    setWorkspace(entry);
+    setUser(account);
+    setView("dashboard");
+    saveKey("restaurantos:workspace", entry, false);
+    if (remember) saveKey("restaurantos:remembered", { slug: entry.slug, email: account.email, password: account.password }, false);
+    else saveKey("restaurantos:remembered", null, false);
+    return { ok: true };
   };
 
   const switchWorkspace = () => {
@@ -2320,13 +2272,6 @@ export default function App() {
     setView("dashboard");
     saveKey("restaurantos:workspace", null, false);
     saveKey("restaurantos:remembered", null, false);
-  };
-
-  const handleLogin = (account, remember) => {
-    setUser(account);
-    setView("dashboard");
-    if (remember) saveKey("restaurantos:remembered", { slug: workspace.slug, email: account.email, password: account.password }, false);
-    else saveKey("restaurantos:remembered", null, false);
   };
 
   const signOut = () => {
@@ -2378,14 +2323,7 @@ export default function App() {
     );
   }
 
-  if (!workspace && !creatingNew) {
-    return (
-      <WorkspacePicker c={c} isDark={isDark} setIsDark={setIsDark} registry={registry}
-        onSelect={selectWorkspace} onCreateNew={() => setCreatingNew(true)} />
-    );
-  }
-
-  if (creatingNew || (workspace && accounts.length === 0)) {
+  if (creatingNew) {
     return (
       <SetupWizard c={c} isDark={isDark} setIsDark={setIsDark} onComplete={completeSetup}
         onCancel={() => setCreatingNew(false)} />
@@ -2393,7 +2331,7 @@ export default function App() {
   }
 
   if (!user) {
-    return <SignInScreen c={c} isDark={isDark} setIsDark={setIsDark} restaurant={restaurant} accounts={accounts} onLogin={handleLogin} onSwitchWorkspace={switchWorkspace} />;
+    return <LoginScreen c={c} isDark={isDark} setIsDark={setIsDark} onLogin={loginWithNameAndPassword} onCreateNew={() => setCreatingNew(true)} />;
   }
 
   const canCreateReservation = user.role === "owner" || user.role === "waiter";
