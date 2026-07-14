@@ -141,6 +141,21 @@ function generatePassword() {
   return out;
 }
 
+/* A restaurant-level recovery code the owner saves to reset their own password
+   if it's forgotten (no email server, so this is the fallback). Grouped for
+   readability; compared without the dash. */
+function generateRecoveryCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < 8; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out.slice(0, 4) + "-" + out.slice(4);
+}
+
+/* Normalise a recovery code for comparison (case-insensitive, ignore dashes/spaces). */
+function normalizeCode(s) {
+  return (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
 function canPost(channel, role) {
   if (channel === "general") return true;
   if (channel === "floor") return role === "owner";
@@ -592,20 +607,42 @@ function TableManager({ c, tables, setTables, compact }) {
 /* Access requires the EXACT restaurant name plus a valid password — the app
    never lists or reveals which restaurants exist, and the password alone
    identifies which staff account is signing in. */
-function LoginScreen({ c, isDark, setIsDark, onLogin, onCreateNew }) {
+function LoginScreen({ c, isDark, setIsDark, onLogin, onRecover, onCreateNew }) {
+  const [mode, setMode] = useState("signin"); // "signin" | "recover"
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  // recovery fields
+  const [code, setCode] = useState("");
+  const [newPass, setNewPass] = useState("");
+  const [confirm, setConfirm] = useState("");
+
+  const goRecover = () => { setError(""); setInfo(""); setMode("recover"); };
+  const goSignin = () => { setError(""); setMode("signin"); };
 
   const submit = async () => {
-    setError("");
+    setError(""); setInfo("");
     if (!name.trim() || !password) { setError("Enter your restaurant name and password."); return; }
     setLoading(true);
     const res = await onLogin(name, password, remember);
     setLoading(false);
     if (!res || !res.ok) setError("Incorrect restaurant name or password.");
+  };
+
+  const submitRecover = async () => {
+    setError("");
+    if (!name.trim() || !code.trim()) { setError("Enter your restaurant name and recovery code."); return; }
+    if (newPass.length < 6) { setError("New password must be at least 6 characters."); return; }
+    if (newPass !== confirm) { setError("New passwords don't match."); return; }
+    setLoading(true);
+    const res = await onRecover(name, code, newPass);
+    setLoading(false);
+    if (!res || !res.ok) { setError(res?.error || "Couldn't reset the password."); return; }
+    setPassword(newPass); setCode(""); setNewPass(""); setConfirm("");
+    setMode("signin"); setInfo("Password updated — you can sign in now.");
   };
 
   return (
@@ -619,32 +656,58 @@ function LoginScreen({ c, isDark, setIsDark, onLogin, onCreateNew }) {
             <div style={{ margin: "0 auto 4px", width: 160 }}>
               <OrdioraLogo c={c} size={160} />
             </div>
-            <div style={{ color: c.textSub, marginTop: 2, fontSize: 15 }}>Sign in to your restaurant.</div>
+            <div style={{ color: c.textSub, marginTop: 2, fontSize: 15 }}>
+              {mode === "signin" ? "Sign in to your restaurant." : "Reset your password."}
+            </div>
           </div>
 
-          <TextInput c={c} label="Restaurant name" value={name} onChange={setName} placeholder="Your exact restaurant name" />
-          <TextInput c={c} label="Password" value={password} onChange={setPassword} placeholder="Password" type="password" error={error} />
+          {mode === "signin" ? (
+            <>
+              <TextInput c={c} label="Restaurant name" value={name} onChange={setName} placeholder="Your exact restaurant name" />
+              <TextInput c={c} label="Password" value={password} onChange={setPassword} placeholder="Password" type="password" error={error} />
+              {info && <div style={{ fontSize: 12.5, color: c.green, marginTop: -8, marginBottom: 12 }}>{info}</div>}
 
-          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginBottom: 18 }}>
-            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={{ width: 17, height: 17, accentColor: c.text }} />
-            <span style={{ fontSize: 13, color: c.textSub }}>Remember me on this device</span>
-          </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginBottom: 18 }}>
+                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={{ width: 17, height: 17, accentColor: c.text }} />
+                <span style={{ fontSize: 13, color: c.textSub }}>Remember me on this device</span>
+              </label>
 
-          <PrimaryButton c={c} full onClick={submit} disabled={loading} style={{ marginTop: 4 }}>
-            {loading ? <><Loader2 size={16} className="spin" /> Signing in…</> : "Sign in"}
-          </PrimaryButton>
-          <div style={{ textAlign: "center", fontSize: 12.5, color: c.textFaint, marginTop: 16, lineHeight: 1.6 }}>
-            New team member? Ask your restaurant owner for your<br />login — they'll share your password with you.
-          </div>
+              <PrimaryButton c={c} full onClick={submit} disabled={loading} style={{ marginTop: 4 }}>
+                {loading ? <><Loader2 size={16} className="spin" /> Signing in…</> : "Sign in"}
+              </PrimaryButton>
+              <button onClick={goRecover} style={{ display: "block", margin: "14px auto 0", background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600, textDecoration: "underline" }}>
+                Forgot password?
+              </button>
+              <div style={{ textAlign: "center", fontSize: 12.5, color: c.textFaint, marginTop: 14, lineHeight: 1.6 }}>
+                New team member? Ask your restaurant owner for your<br />login — they'll share your password with you.
+              </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "22px 0 18px" }}>
-            <div style={{ flex: 1, height: 1, background: c.border }} />
-            <span style={{ fontSize: 12, color: c.textFaint }}>or</span>
-            <div style={{ flex: 1, height: 1, background: c.border }} />
-          </div>
-          <GhostButton c={c} full onClick={onCreateNew}>
-            <Plus size={15} /> Set up a new restaurant
-          </GhostButton>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "22px 0 18px" }}>
+                <div style={{ flex: 1, height: 1, background: c.border }} />
+                <span style={{ fontSize: 12, color: c.textFaint }}>or</span>
+                <div style={{ flex: 1, height: 1, background: c.border }} />
+              </div>
+              <GhostButton c={c} full onClick={onCreateNew}>
+                <Plus size={15} /> Set up a new restaurant
+              </GhostButton>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14, lineHeight: 1.6 }}>
+                Enter your restaurant name and the recovery code you saved when you set up the restaurant, then choose a new owner password.
+              </div>
+              <TextInput c={c} label="Restaurant name" value={name} onChange={setName} placeholder="Your exact restaurant name" />
+              <TextInput c={c} label="Recovery code" value={code} onChange={setCode} placeholder="e.g. R7K2-9QMX" />
+              <TextInput c={c} label="New password" value={newPass} onChange={setNewPass} placeholder="At least 6 characters" type="password" />
+              <TextInput c={c} label="Confirm new password" value={confirm} onChange={setConfirm} placeholder="Repeat password" type="password" error={error} />
+              <PrimaryButton c={c} full onClick={submitRecover} disabled={loading} style={{ marginTop: 4 }}>
+                {loading ? <><Loader2 size={16} className="spin" /> Resetting…</> : "Reset password"}
+              </PrimaryButton>
+              <button onClick={goSignin} style={{ display: "block", margin: "16px auto 0", background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600, textDecoration: "underline" }}>
+                Back to sign in
+              </button>
+            </>
+          )}
         </div>
       </div>
       <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
@@ -1504,6 +1567,33 @@ function CredentialsModal({ c, account, restaurant, onClose }) {
   );
 }
 
+function RecoveryCodeModal({ c, code, restaurant, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    try { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (e) {}
+  };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 75, padding: 20 }}>
+      <div style={{ background: c.surface, borderRadius: 24, padding: 26, width: "100%", maxWidth: 380, fontFamily: fontStack().body }}>
+        <div style={{ width: 48, height: 48, borderRadius: 14, background: c.amber + "1A", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+          <KeyRound size={22} color={c.amber} />
+        </div>
+        <div style={{ fontWeight: 700, fontSize: 18, color: c.text, marginBottom: 4 }}>Save your recovery code</div>
+        <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 18 }}>
+          If you ever forget your password, this code lets you reset it on the sign-in screen. Store it somewhere safe — you can view it again anytime in Settings.
+        </div>
+        <div style={{ background: c.surfaceAlt, borderRadius: 14, padding: 16, marginBottom: 18, textAlign: "center" }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: c.text, letterSpacing: "0.14em", fontFamily: "monospace" }}>{code}</div>
+        </div>
+        <PrimaryButton c={c} full onClick={copy} style={{ marginBottom: 10 }}>
+          {copied ? <><Check size={16} /> Copied</> : <><Copy size={16} /> Copy code</>}
+        </PrimaryButton>
+        <GhostButton c={c} full onClick={onClose}>I've saved it</GhostButton>
+      </div>
+    </div>
+  );
+}
+
 function StaffScreen({ c, staff, setStaff, user, restaurant }) {
   const canManage = user.role === "owner";
   const [adding, setAdding] = useState(false);
@@ -1511,6 +1601,18 @@ function StaffScreen({ c, staff, setStaff, user, restaurant }) {
   const [justAdded, setJustAdded] = useState(null);
   const [revealed, setRevealed] = useState({});
   const [removeTarget, setRemoveTarget] = useState(null);
+  const [pwTarget, setPwTarget] = useState(null); // staff member whose password is being changed
+  const [pwValue, setPwValue] = useState("");
+  const [pwErr, setPwErr] = useState("");
+
+  const openReset = (s) => { setPwErr(""); setPwValue(generatePassword()); setPwTarget(s); };
+  const saveReset = () => {
+    const next = pwValue.trim();
+    if (next.length < 6) { setPwErr("At least 6 characters."); return; }
+    setStaff((prev) => prev.map((a) => a.id === pwTarget.id ? { ...a, password: next } : a));
+    setRevealed((r) => ({ ...r, [pwTarget.id]: true }));
+    setPwTarget(null);
+  };
 
   const add = () => {
     if (!form.name.trim()) return;
@@ -1567,6 +1669,9 @@ function StaffScreen({ c, staff, setStaff, user, restaurant }) {
                 <button onClick={() => setRevealed((r) => ({ ...r, [s.id]: !r[s.id] }))} style={{ background: "none", border: "none", cursor: "pointer", color: c.textFaint, display: "flex" }}>
                   {revealed[s.id] ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
+                <button onClick={() => openReset(s)} style={{ background: "none", border: `1px solid ${c.border}`, borderRadius: 8, padding: "4px 10px", cursor: "pointer", color: c.textSub, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
+                  Change
+                </button>
               </div>
             )}
           </div>
@@ -1596,6 +1701,19 @@ function StaffScreen({ c, staff, setStaff, user, restaurant }) {
         </div>
       )}
 
+      {pwTarget && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={() => setPwTarget(null)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: c.surface, width: "100%", maxWidth: 520, margin: "0 auto", borderRadius: "24px 24px 0 0", padding: "22px 22px calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "88dvh", overflowY: "auto" }}>
+            <div style={{ fontWeight: 700, fontSize: 17, color: c.text, marginBottom: 4 }}>Change password · {pwTarget.name}</div>
+            <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>Set a new password and share it with them. It replaces their old one immediately.</div>
+            <TextInput c={c} label="New password" value={pwValue} onChange={(v) => { setPwValue(v); setPwErr(""); }} error={pwErr} hint="They sign in with the restaurant name and this password." />
+            <GhostButton c={c} full onClick={() => setPwValue(generatePassword())} style={{ marginBottom: 12 }}>
+              <KeyRound size={15} /> Generate a new one
+            </GhostButton>
+            <PrimaryButton c={c} full disabled={pwValue.trim().length < 6} onClick={saveReset}>Save password</PrimaryButton>
+          </div>
+        </div>
+      )}
       {justAdded && <CredentialsModal c={c} account={justAdded} restaurant={restaurant} onClose={() => setJustAdded(null)} />}
       {removeTarget && (
         <ConfirmDialog c={c} title={`Remove ${removeTarget.name}?`} message="They'll lose access immediately. This can't be undone."
@@ -1673,6 +1791,13 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
   const [passMsg, setPassMsg] = useState("");
   const [passErr, setPassErr] = useState("");
 
+  const [revealCode, setRevealCode] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const setRecoveryCode = (code) => setRestaurant({ ...restaurant, recoveryCode: code });
+  const copyCode = () => {
+    try { navigator.clipboard.writeText(restaurant.recoveryCode || ""); setCopiedCode(true); setTimeout(() => setCopiedCode(false), 1500); } catch (e) {}
+  };
+
   const saveRestaurant = () => {
     if (!restName.trim()) return;
     setRestaurant({ ...restaurant, name: restName.trim() });
@@ -1734,6 +1859,36 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
           <div style={{ fontWeight: 700, color: c.text, marginBottom: 4 }}>Tables</div>
           <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>Manage the tables staff can assign reservations to, grouped by section.</div>
           <TableManager c={c} tables={tables} setTables={setTables} />
+        </SectionCard>
+      )}
+
+      {canManage && (
+        <SectionCard c={c} style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, color: c.text, marginBottom: 4 }}>Recovery code</div>
+          <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>
+            If you ever forget your password, use this code on the sign-in screen ("Forgot password?") to set a new one. Keep it somewhere safe — anyone with it can reset the owner password.
+          </div>
+          {restaurant.recoveryCode ? (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: c.surfaceAlt, borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
+                <KeyRound size={15} color={c.textFaint} />
+                <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: c.text, letterSpacing: "0.08em", fontFamily: revealCode ? "monospace" : "inherit" }}>
+                  {revealCode ? restaurant.recoveryCode : "••••••••"}
+                </span>
+                <button onClick={() => setRevealCode((v) => !v)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textFaint, display: "flex" }}>
+                  {revealCode ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <GhostButton c={c} full onClick={copyCode}>{copiedCode ? <><Check size={15} /> Copied</> : <><Copy size={15} /> Copy</>}</GhostButton>
+                <GhostButton c={c} full onClick={() => { setRecoveryCode(generateRecoveryCode()); setRevealCode(true); }}>Regenerate</GhostButton>
+              </div>
+            </>
+          ) : (
+            <PrimaryButton c={c} full onClick={() => { setRecoveryCode(generateRecoveryCode()); setRevealCode(true); }}>
+              <KeyRound size={15} /> Generate recovery code
+            </PrimaryButton>
+          )}
         </SectionCard>
       )}
 
@@ -2140,6 +2295,7 @@ export default function App() {
   const [workspace, setWorkspace] = useState(null); // { slug, name } | null
   const [registry, setRegistry] = useState([]); // [{ slug, name }, ...] — every restaurant in this artifact
   const [creatingNew, setCreatingNew] = useState(false);
+  const [newRecovery, setNewRecovery] = useState(null); // recovery code to show once, right after setup
 
   const [restaurant, setRestaurant] = useState(null);
   const [accounts, setAccounts] = useState([]);
@@ -2219,8 +2375,10 @@ export default function App() {
   const completeSetup = ({ restaurant: r, owner, tables: t, remember }) => {
     const slug = generateSlug(r.name, registry.map((w) => w.slug));
     const ws = { slug, name: r.name };
-    const restaurantWithSlug = { ...r, slug };
+    const recoveryCode = generateRecoveryCode();
+    const restaurantWithSlug = { ...r, slug, recoveryCode };
     setRestaurant(restaurantWithSlug);
+    setNewRecovery(recoveryCode);
     setAccounts([owner]);
     setTables(t);
     setUser(owner);
@@ -2254,6 +2412,24 @@ export default function App() {
     saveKey("restaurantos:workspace", entry, false);
     if (remember) saveKey("restaurantos:remembered", { slug: entry.slug, email: account.email, password: account.password }, false);
     else saveKey("restaurantos:remembered", null, false);
+    return { ok: true };
+  };
+
+  // Forgotten-password recovery for the owner: exact restaurant name + the
+  // restaurant's recovery code lets them set a new owner password.
+  const recoverOwnerPassword = async (name, code, newPassword) => {
+    const target = (name || "").trim().toLowerCase();
+    const entry = registry.find((r) => (r.name || "").trim().toLowerCase() === target);
+    if (!entry) return { ok: false, error: "No restaurant found with that name." };
+    const rest = await loadKey(`restaurantos:${entry.slug}:restaurant`, null, true);
+    if (!rest || !rest.recoveryCode) return { ok: false, error: "This restaurant has no recovery code set." };
+    if (normalizeCode(rest.recoveryCode) !== normalizeCode(code)) return { ok: false, error: "Incorrect recovery code." };
+    if ((newPassword || "").length < 6) return { ok: false, error: "New password must be at least 6 characters." };
+    const accs = await loadKey(`restaurantos:${entry.slug}:accounts`, [], true);
+    const idx = accs.findIndex((a) => a.role === "owner");
+    if (idx === -1) return { ok: false, error: "No owner account found." };
+    const nextAccs = accs.map((a, i) => i === idx ? { ...a, password: newPassword } : a);
+    await saveKey(`restaurantos:${entry.slug}:accounts`, nextAccs, true);
     return { ok: true };
   };
 
@@ -2331,7 +2507,7 @@ export default function App() {
   }
 
   if (!user) {
-    return <LoginScreen c={c} isDark={isDark} setIsDark={setIsDark} onLogin={loginWithNameAndPassword} onCreateNew={() => setCreatingNew(true)} />;
+    return <LoginScreen c={c} isDark={isDark} setIsDark={setIsDark} onLogin={loginWithNameAndPassword} onRecover={recoverOwnerPassword} onCreateNew={() => setCreatingNew(true)} />;
   }
 
   const canCreateReservation = user.role === "owner" || user.role === "waiter";
@@ -2382,6 +2558,10 @@ export default function App() {
         <ReservationWizard c={c} reservations={reservations} tables={tables} onClose={() => setResModal(null)}
           editing={typeof resModal === "object" ? resModal : null}
           onCreate={createReservation} onUpdate={updateReservation} onDelete={deleteReservation} />
+      )}
+
+      {newRecovery && (
+        <RecoveryCodeModal c={c} code={newRecovery} restaurant={restaurant} onClose={() => setNewRecovery(null)} />
       )}
     </div>
   );

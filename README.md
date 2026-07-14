@@ -8,6 +8,10 @@ data syncs across every device that opens the same restaurant.
 
 - **Workspaces** — set up one or more restaurants, each with its own data.
 - **Roles** — owner, waiter, chef, with role-scoped permissions.
+- **Access & recovery** — sign in with the exact restaurant name + password
+  (the restaurant list is never shown). The owner can change any staff member's
+  password, and can reset their own via a recovery code (shown at setup, viewable
+  in Settings) using "Forgot password?" on the sign-in screen.
 - **Reservations** — create/edit bookings with table conflict detection.
 - **Shifts** — weekly staff scheduling.
 - **Chat** — general / floor / kitchen channels.
