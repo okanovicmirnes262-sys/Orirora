@@ -1951,8 +1951,45 @@ function normName(s) {
   return (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 }
 
+// A real supply/product name is short; anything longer is a run-on blob.
+const MAX_NAME_LEN = 48;
+
+// Collapse letter-spaced titles ("B I S T R O" \u2192 "BISTRO") so they don't turn
+// into a swarm of one-letter items. No-op on normal lines.
+function collapseLetterSpacing(line) {
+  const tokens = (line || "").split(/\s+/).filter(Boolean);
+  if (tokens.length < 4) return line;
+  const singles = tokens.filter((t) => t.length === 1 && /\p{L}/u.test(t)).length;
+  if (singles / tokens.length <= 0.6) return line;
+  return line.replace(/(?<=\p{L})\s+(?=\p{L}(?:\s|$))/gu, "");
+}
+
+// Strip a leading menu-category header from a line ("GLAVNA JELA Filet\u2026" \u2192 "Filet\u2026").
+function stripLeadingHeader(seg) {
+  let s = (seg || "").trim();
+  for (let guard = 0; guard < 4; guard++) {
+    let stripped = false;
+    for (const h of MENU_HEADERS) {
+      const n = h.split(" ").length;
+      const prefix = s.split(/\s+/).slice(0, n).join(" ");
+      if (prefix && normName(prefix) === h) { s = s.split(/\s+/).slice(n).join(" ").trim(); stripped = true; break; }
+    }
+    if (!stripped) break;
+  }
+  return s;
+}
+
+// Split a run-on line into candidate segments (sentence ends / big gaps / bullets).
+function splitRunOn(line) {
+  return (line || "").split(/(?:\.\s+|!\s+|\s{2,}|[\u00b7\u2022\u2022])/).map((s) => s.trim()).filter(Boolean);
+}
+
+function firstWords(s, n) {
+  return (s || "").split(/\s+/).filter(Boolean).slice(0, n).join(" ");
+}
+
 function basicClean(raw) {
-  let s = (raw || "").replace(/\t/g, " ");
+  let s = collapseLetterSpacing((raw || "").replace(/\t/g, " "));
   // leading list numbering / bullets: "1. ", "12) ", "- ", "•"
   s = s.replace(/^\s*(?:\d{1,3}\s*[.)\-–]\s+|[\-•*·—>]+\s*)/, "");
   // leading measure/volume: "0,5 l ", "0,33 ", "2 kg " (but not "7 UP")
@@ -1995,25 +2032,41 @@ function finalizeName(s) {
   return s.replace(/[\s,;:.\-–]+$/, "").trim();
 }
 
-// Aggressive: raw OCR/PDF → curated item names.
+// Validate + normalise one candidate and push it if it looks like a real item.
+function pushCandidate(cleanedRaw, out, seen) {
+  const cleaned = stripLeadingHeader(cleanedRaw);
+  if (cleaned.length < 2 || !/\p{L}/u.test(cleaned)) return;
+  if (isPriceOnly(cleaned) || isHeaderLine(cleaned)) return;
+  const simplified = simplifyPrep(cleaned);
+  if (looksLikeDescription(simplified)) return;
+  const name = finalizeName(simplified);
+  const key = normName(name);
+  if (name.length < 2 || name.length > MAX_NAME_LEN || !key || isHeaderLine(name) || seen.has(key)) return;
+  seen.add(key);
+  out.push(name);
+}
+
+// Aggressive: raw OCR/PDF → curated item names. Handles both proper lines and
+// run-on paragraphs (a whole menu on one line) by splitting and taking the
+// leading words of each segment.
 function extractMenuItems(text) {
   const out = [], seen = new Set();
   (text || "").split(/\r?\n/).forEach((raw) => {
     const cleaned = basicClean(raw);
-    if (cleaned.length < 2 || !/\p{L}/u.test(cleaned)) return;
-    if (isPriceOnly(cleaned) || isHeaderLine(cleaned)) return;
-    const simplified = simplifyPrep(cleaned);
-    if (looksLikeDescription(simplified)) return;
-    const name = finalizeName(simplified);
-    const key = normName(name);
-    if (name.length < 2 || !key || isHeaderLine(name) || seen.has(key)) return;
-    seen.add(key);
-    out.push(name);
+    if (cleaned.length < 2) return;
+    const words = cleaned.split(/\s+/).filter(Boolean).length;
+    if (cleaned.length <= MAX_NAME_LEN && words <= 6) {
+      pushCandidate(cleaned, out, seen);
+    } else {
+      // run-on line → split into segments; each item's name leads its segment
+      splitRunOn(cleaned).forEach((seg) => pushCandidate(basicClean(firstWords(stripLeadingHeader(seg), 4)), out, seen));
+    }
   });
   return out;
 }
 
-// Lenient: curated textarea → final list (trusts the person's lines).
+// Lenient: curated textarea → final list (trusts the person's lines, but still
+// strips prices/bullets, shortens preparation and caps run-on blobs).
 function parseItemLines(text) {
   const out = [], seen = new Set();
   (text || "").split(/\r?\n/).forEach((raw) => {
@@ -2021,7 +2074,7 @@ function parseItemLines(text) {
     if (cleaned.length < 2 || !/\p{L}/u.test(cleaned) || isPriceOnly(cleaned)) return;
     const name = finalizeName(simplifyPrep(cleaned));
     const key = normName(name);
-    if (name.length < 2 || !key || seen.has(key)) return;
+    if (name.length < 2 || name.length > MAX_NAME_LEN || !key || seen.has(key)) return;
     seen.add(key);
     out.push(name);
   });
@@ -2054,7 +2107,24 @@ async function pdfTextFromFile(file) {
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);
     const content = await page.getTextContent();
-    text += content.items.map((i) => (i.str || "")).join(" ") + "\n";
+    // Reconstruct visual lines: pdf.js marks line ends with `hasEOL`; fall back
+    // to a jump in the y-coordinate (transform[5]) for PDFs that don't set it.
+    // Without this the whole page collapses onto one line and the parser sees a
+    // single giant "item".
+    let line = "";
+    let lastY = null;
+    for (const it of content.items) {
+      const str = it.str || "";
+      const y = it.transform ? it.transform[5] : null;
+      if (lastY !== null && y !== null && Math.abs(y - lastY) > 3 && line.trim()) {
+        text += line.trim() + "\n";
+        line = "";
+      }
+      line += str + (it.hasEOL ? "\n" : " ");
+      if (it.hasEOL) { text += line.trim() + "\n"; line = ""; lastY = null; }
+      else if (y !== null) lastY = y;
+    }
+    if (line.trim()) text += line.trim() + "\n";
     page.cleanup();
   }
   return text;
@@ -2191,7 +2261,20 @@ function OrderingScreen({ c, products, setProducts, orderDraft, setOrderDraft, r
   const [importing, setImporting] = useState(false);
   const [newName, setNewName] = useState("");
   const [newUnit, setNewUnit] = useState("kom");
-  const [removeTarget, setRemoveTarget] = useState(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState(() => new Set());
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+
+  const removeProducts = (ids) => {
+    const set = ids instanceof Set ? ids : new Set(ids);
+    setProducts((prev) => prev.filter((p) => !set.has(p.id)));
+    setOrderDraft((prev) => { const n = { ...prev }; set.forEach((id) => delete n[id]); return n; });
+  };
+  const removeOne = (id) => removeProducts([id]);           // one-tap delete
+  const toggleSelect = (id) => setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const exitSelect = () => { setSelectMode(false); setSelected(new Set()); };
+  const selectAll = () => setSelected(new Set(products.map((p) => p.id)));
+  const deleteSelected = () => { removeProducts(selected); setBulkConfirm(false); exitSelect(); };
 
   const setQty = (id, qty) => setOrderDraft((prev) => {
     const n = Math.max(0, Number(qty) || 0);
@@ -2222,13 +2305,6 @@ function OrderingScreen({ c, products, setProducts, orderDraft, setOrderDraft, r
       });
       return [...prev, ...fresh];
     });
-  };
-
-  const confirmRemove = () => {
-    const id = removeTarget.id;
-    setProducts((prev) => prev.filter((p) => p.id !== id));
-    setOrderDraft((prev) => { const n = { ...prev }; delete n[id]; return n; });
-    setRemoveTarget(null);
   };
 
   const orderRows = products
@@ -2268,6 +2344,27 @@ function OrderingScreen({ c, products, setProducts, orderDraft, setOrderDraft, r
         </PrimaryButton>
       </div>
 
+      {products.length > 0 && (
+        selectMode ? (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: c.surfaceAlt, borderRadius: 14, padding: "10px 14px", marginBottom: 16 }}>
+            <span style={{ fontSize: 13.5, color: c.text, fontWeight: 600 }}>{selected.size} selected</span>
+            <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+              <button onClick={selected.size === products.length ? () => setSelected(new Set()) : selectAll} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600 }}>
+                {selected.size === products.length ? "None" : "All"}
+              </button>
+              <button onClick={() => selected.size && setBulkConfirm(true)} disabled={!selected.size} style={{ background: "none", border: "none", cursor: selected.size ? "pointer" : "default", color: selected.size ? c.rose : c.textFaint, fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
+                <Trash2 size={14} /> Delete
+              </button>
+              <button onClick={exitSelect} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600 }}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setSelectMode(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600, marginBottom: 12, padding: 0 }}>
+            <CheckCircle2 size={14} /> Select items to delete
+          </button>
+        )
+      )}
+
       {orderCount > 0 && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: c.surfaceAlt, borderRadius: 14, padding: "12px 14px", marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: c.text, fontWeight: 600 }}>
@@ -2304,34 +2401,51 @@ function OrderingScreen({ c, products, setProducts, orderDraft, setOrderDraft, r
         products.map((p) => {
           const qty = Number(orderDraft[p.id]) || 0;
           const inOrder = qty > 0;
+          const isSel = selected.has(p.id);
           return (
-            <div key={p.id} style={{
+            <div key={p.id} onClick={selectMode ? () => toggleSelect(p.id) : undefined} style={{
               display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 14, marginBottom: 8,
-              border: `1px solid ${inOrder ? c.text : c.border}`, background: inOrder ? c.surfaceAlt : c.surface,
+              border: `1px solid ${(selectMode ? isSel : inOrder) ? c.text : c.border}`,
+              background: (selectMode ? isSel : inOrder) ? c.surfaceAlt : c.surface,
+              cursor: selectMode ? "pointer" : "default",
             }}>
+              {selectMode && (
+                <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: `1.5px solid ${isSel ? c.text : c.borderStrong}`, background: isSel ? c.text : "transparent" }}>
+                  {isSel && <Check size={14} color={c.bg} />}
+                </div>
+              )}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 14.5, color: c.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
-                <select value={p.unit} onChange={(e) => setUnit(p.id, e.target.value)}
-                  style={{ marginTop: 2, padding: "2px 4px", borderRadius: 8, border: `1px solid ${c.border}`, background: "transparent", color: c.textSub, fontSize: 12 }}>
-                  {ORDER_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                </select>
+                {selectMode ? (
+                  <div style={{ fontSize: 12, color: c.textSub, marginTop: 2 }}>{p.unit}</div>
+                ) : (
+                  <select value={p.unit} onChange={(e) => setUnit(p.id, e.target.value)}
+                    style={{ marginTop: 2, padding: "2px 4px", borderRadius: 8, border: `1px solid ${c.border}`, background: "transparent", color: c.textSub, fontSize: 12 }}>
+                    {ORDER_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                )}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <button onClick={() => step(p.id, -1)} style={{ width: 30, height: 30, borderRadius: 9, border: `1px solid ${c.border}`, background: c.surface, color: c.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Minus size={14} /></button>
-                <input value={qty || ""} onChange={(e) => setQty(p.id, e.target.value)} inputMode="decimal" placeholder="0"
-                  style={{ width: 46, textAlign: "center", padding: "7px 4px", borderRadius: 9, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
-                <button onClick={() => step(p.id, 1)} style={{ width: 30, height: 30, borderRadius: 9, border: `1px solid ${c.border}`, background: c.surface, color: c.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Plus size={14} /></button>
-              </div>
-              <button onClick={() => setRemoveTarget(p)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textFaint, flexShrink: 0 }}><Trash2 size={15} /></button>
+              {!selectMode && (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <button onClick={() => step(p.id, -1)} style={{ width: 30, height: 30, borderRadius: 9, border: `1px solid ${c.border}`, background: c.surface, color: c.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Minus size={14} /></button>
+                    <input value={qty || ""} onChange={(e) => setQty(p.id, e.target.value)} inputMode="decimal" placeholder="0"
+                      style={{ width: 46, textAlign: "center", padding: "7px 4px", borderRadius: 9, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
+                    <button onClick={() => step(p.id, 1)} style={{ width: 30, height: 30, borderRadius: 9, border: `1px solid ${c.border}`, background: c.surface, color: c.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Plus size={14} /></button>
+                  </div>
+                  <button onClick={() => removeOne(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textFaint, flexShrink: 0 }}><Trash2 size={15} /></button>
+                </>
+              )}
             </div>
           );
         })
       )}
 
       {importing && <ImportItemsModal c={c} onClose={() => setImporting(false)} onAdd={addMany} />}
-      {removeTarget && (
-        <ConfirmDialog c={c} title={`Remove ${removeTarget.name}?`} message="This item will be removed from your catalog and any current order."
-          confirmLabel="Remove" onCancel={() => setRemoveTarget(null)} onConfirm={confirmRemove} />
+      {bulkConfirm && (
+        <ConfirmDialog c={c} title={`Remove ${selected.size} item${selected.size === 1 ? "" : "s"}?`}
+          message="The selected items will be removed from your catalog and any current order."
+          confirmLabel="Remove" onCancel={() => setBulkConfirm(false)} onConfirm={deleteSelected} />
       )}
     </div>
   );
