@@ -1625,7 +1625,7 @@ function RecoveryCodeModal({ c, code, restaurant, onClose }) {
   );
 }
 
-function StaffScreen({ c, staff, setStaff, user, restaurant }) {
+function StaffScreen({ c, staff, setStaff, user, restaurant, onPasswordChanged }) {
   const canManage = user.role === "owner";
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: "", role: "waiter", phone: "" });
@@ -1641,6 +1641,7 @@ function StaffScreen({ c, staff, setStaff, user, restaurant }) {
     const next = pwValue.trim();
     if (next.length < 6) { setPwErr("At least 6 characters."); return; }
     setStaff((prev) => prev.map((a) => a.id === pwTarget.id ? { ...a, password: next } : a));
+    if (onPasswordChanged) onPasswordChanged(pwTarget.id, next);
     setRevealed((r) => ({ ...r, [pwTarget.id]: true }));
     setPwTarget(null);
   };
@@ -1814,7 +1815,7 @@ function MoreScreen({ c, user, restaurant, setView, isDark, setIsDark, onSignOut
   );
 }
 
-function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant, tables, setTables, accounts, setAccounts }) {
+function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant, tables, setTables, accounts, setAccounts, onPasswordChanged }) {
   const canManage = user.role === "owner";
   const [restName, setRestName] = useState(restaurant.name);
   const [savedRest, setSavedRest] = useState(false);
@@ -1854,6 +1855,7 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
     if (newPass.length < 6) { setPassErr("New password must be at least 6 characters."); return; }
     if (newPass !== confirmPass) { setPassErr("New passwords don't match."); return; }
     setAccounts((prev) => prev.map((a) => a.id === user.id ? { ...a, password: newPass } : a));
+    if (onPasswordChanged) onPasswordChanged(user.id, newPass);
     setCurPass(""); setNewPass(""); setConfirmPass("");
     setPassMsg("Password updated.");
     setTimeout(() => setPassMsg(""), 2000);
@@ -2874,6 +2876,17 @@ export default function App() {
     saveKey("restaurantos:remembered", null, false);
   };
 
+  // When an account's password changes, keep the signed-in user object and this
+  // device's "remember me" token in sync so auto-login doesn't silently break.
+  const onAccountPasswordChanged = (accountId, newPassword) => {
+    if (!user || accountId !== user.id) return;
+    setUser((u) => (u ? { ...u, password: newPassword } : u));
+    const remembered = loadLocal("restaurantos:remembered", null);
+    if (remembered && workspace && remembered.slug === workspace.slug && remembered.email === user.email) {
+      saveKey("restaurantos:remembered", { ...remembered, password: newPassword }, false);
+    }
+  };
+
   // Used by Settings so a rename also updates the entry shown in the workspace picker.
   const updateRestaurant = (updated) => {
     setRestaurant(updated);
@@ -2964,9 +2977,9 @@ export default function App() {
           {view === "shifts" && <ShiftsScreen c={c} shifts={shifts} setShifts={setShifts} staff={accounts} user={user} />}
           {view === "chat" && <ChatScreen c={c} chat={chat} setChat={setChat} staff={accounts} user={user} notify={notify} />}
           {view === "analytics" && <AnalyticsScreen c={c} reservations={reservations} shifts={shifts} staff={accounts} user={user} />}
-          {view === "staff" && <StaffScreen c={c} staff={accounts} setStaff={setAccounts} user={user} restaurant={restaurant} />}
+          {view === "staff" && <StaffScreen c={c} staff={accounts} setStaff={setAccounts} user={user} restaurant={restaurant} onPasswordChanged={onAccountPasswordChanged} />}
           {view === "more" && <MoreScreen c={c} user={user} restaurant={restaurant} setView={setView} isDark={isDark} setIsDark={setIsDark} onSignOut={signOut} onSwitchWorkspace={switchWorkspace} />}
-          {view === "settings" && <SettingsScreen c={c} user={user} isDark={isDark} setIsDark={setIsDark} restaurant={restaurant} setRestaurant={updateRestaurant} tables={tables} setTables={setTables} accounts={accounts} setAccounts={setAccounts} />}
+          {view === "settings" && <SettingsScreen c={c} user={user} isDark={isDark} setIsDark={setIsDark} restaurant={restaurant} setRestaurant={updateRestaurant} tables={tables} setTables={setTables} accounts={accounts} setAccounts={setAccounts} onPasswordChanged={onAccountPasswordChanged} />}
           {view === "orders" && <OrderingScreen c={c} products={products} setProducts={setProducts} orderDraft={orderDraft} setOrderDraft={setOrderDraft} restaurant={restaurant} />}
           {view === "followups" && (user.role === "owner" || user.role === "waiter") && <FollowUpsScreen c={c} reservations={reservations} setReservations={setReservations} restaurant={restaurant} setView={setView} />}
         </div>
