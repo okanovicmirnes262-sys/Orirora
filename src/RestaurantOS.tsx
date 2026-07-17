@@ -523,7 +523,7 @@ function BottomNav({ view, setView, c }) {
       borderTop: `1px solid ${c.border}`, padding: "10px 6px calc(14px + env(safe-area-inset-bottom, 0px))", justifyContent: "space-around", zIndex: 20,
     }}>
       {NAV_ITEMS.map((item) => {
-        const activeSet = item.key === "more" ? ["more", "shifts", "staff", "settings", "orders"].includes(view) : view === item.key;
+        const activeSet = item.key === "more" ? ["more", "shifts", "staff", "settings", "orders", "followups"].includes(view) : view === item.key;
         const Icon = item.icon;
         return (
           <button key={item.key} onClick={() => setView(item.key)} style={{
@@ -1763,6 +1763,9 @@ function MoreScreen({ c, user, restaurant, setView, isDark, setIsDark, onSignOut
     { label: "Order supplies", icon: ShoppingCart, accent: c.green, action: () => setView("orders") },
     { label: "Shifts", icon: Clock, accent: c.amber, action: () => setView("shifts") },
     { label: "Team", icon: Users, accent: c.blue, action: () => setView("staff") },
+    ...(user.role === "owner" || user.role === "waiter"
+      ? [{ label: "Follow-ups", icon: Mail, accent: c.blue, action: () => setView("followups") }]
+      : []),
     { label: "Settings", icon: SettingsIcon, accent: c.violet, action: () => setView("settings") },
   ];
   return (
@@ -1815,6 +1818,14 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
   const canManage = user.role === "owner";
   const [restName, setRestName] = useState(restaurant.name);
   const [savedRest, setSavedRest] = useState(false);
+
+  const [reviewUrl, setReviewUrl] = useState(restaurant.googleReviewUrl || "");
+  const [savedReview, setSavedReview] = useState(false);
+  const saveReviewUrl = () => {
+    setRestaurant({ ...restaurant, googleReviewUrl: reviewUrl.trim() });
+    setSavedReview(true);
+    setTimeout(() => setSavedReview(false), 1500);
+  };
 
   const [curPass, setCurPass] = useState("");
   const [newPass, setNewPass] = useState("");
@@ -1887,6 +1898,21 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
 
       {canManage && (
         <SectionCard c={c} style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, color: c.text, marginBottom: 4 }}>Google reviews</div>
+          <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>Set the link guests use to leave a review — used by Follow-ups.</div>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <input value={reviewUrl} onChange={(e) => setReviewUrl(e.target.value)} placeholder="https://g.page/r/..." inputMode="url"
+                style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
+            </div>
+            <PrimaryButton c={c} onClick={saveReviewUrl} style={{ padding: "12px 18px" }}>{savedReview ? <Check size={16} /> : "Save"}</PrimaryButton>
+          </div>
+          <div style={{ fontSize: 12, color: c.textFaint, marginTop: 8 }}>Paste the review link from your Google Business Profile.</div>
+        </SectionCard>
+      )}
+
+      {canManage && (
+        <SectionCard c={c} style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 700, color: c.text, marginBottom: 4 }}>Tables</div>
           <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>Manage the tables staff can assign reservations to, grouped by section.</div>
           <TableManager c={c} tables={tables} setTables={setTables} />
@@ -1941,6 +1967,98 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
           <div>Role: {ROLE_META[user.role].label}</div>
         </div>
       </SectionCard>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Follow-ups — invite completed guests to leave a Google review      */
+/* ------------------------------------------------------------------ */
+
+function FollowUpsScreen({ c, reservations, setReservations, restaurant, setView }) {
+  const [active, setActive] = useState(null);   // reservation whose sheet is open
+  const [bodyText, setBodyText] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const reviewUrl = (restaurant && restaurant.googleReviewUrl) || "";
+
+  const list = useMemo(() => reservations
+    .filter((r) => r.status === "completed" && r.email && r.email.trim() && !r.followUpSent)
+    .sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)),
+  [reservations]);
+
+  const firstName = (name) => (name || "").trim().split(/\s+/)[0] || (name || "");
+  const shortDate = (d) => { const p = (d || "").split("-"); return p.length === 3 ? `${p[2]}.${p[1]}.` : (d || ""); };
+  const subjectFor = (r) => `Hvala na posjeti, ${firstName(r.name)}`;
+  const bodyFor = (r) =>
+    `Pozdrav ${firstName(r.name)},\n\n` +
+    `hvala što ste nas posjetili ${shortDate(r.date)}. Nadamo se da je bilo lijepo.\n\n` +
+    `Ako imate minutu, vaša recenzija nam puno znači:\n${reviewUrl}\n\n` +
+    `Srdačan pozdrav,\n${(restaurant && restaurant.name) || ""}`;
+
+  const openGuest = (r) => { setBodyText(bodyFor(r)); setCopied(false); setActive(r); };
+  const copy = () => { try { navigator.clipboard.writeText(bodyText); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (e) {} };
+  const openMail = () => {
+    if (!active) return;
+    window.location.href = `mailto:${encodeURIComponent(active.email)}?subject=${encodeURIComponent(subjectFor(active))}&body=${encodeURIComponent(bodyText)}`;
+  };
+  const markSent = () => {
+    if (!active) return;
+    const id = active.id;
+    setReservations((prev) => prev.map((x) => x.id === id ? { ...x, followUpSent: true } : x));
+    setActive(null);
+  };
+
+  return (
+    <div style={{ padding: "0 20px 24px" }}>
+      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 2px" }}>Follow-ups</div>
+      <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 16 }}>Invite guests to leave a Google review after their visit.</div>
+
+      {!reviewUrl && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, background: c.surfaceAlt, borderRadius: 14, padding: "12px 14px", marginBottom: 16 }}>
+          <div style={{ flex: 1, fontSize: 13, color: c.textSub }}>Add your Google review link so guests can leave a review.</div>
+          <GhostButton c={c} onClick={() => setView("settings")} style={{ padding: "8px 14px", flexShrink: 0 }}>Settings</GhostButton>
+        </div>
+      )}
+
+      {list.length === 0 ? (
+        <EmptyState c={c} icon={Mail} title="No follow-ups yet"
+          message="Guests appear here once their reservation is marked completed, so you can invite them to leave a review." />
+      ) : (
+        list.map((r) => (
+          <button key={r.id} onClick={() => openGuest(r)} style={{
+            width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: 14, borderRadius: 16, marginBottom: 8,
+            border: `1px solid ${c.border}`, background: c.surface, boxShadow: c.shadow, cursor: "pointer",
+          }}>
+            <Avatar c={c} name={r.name} size={40} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14.5, color: c.text }}>{r.name}</div>
+              <div style={{ fontSize: 12.5, color: c.textSub, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.email}</div>
+              <div style={{ fontSize: 12, color: c.textFaint, marginTop: 2 }}>{formatDateLabel(r.date)} · {r.table}</div>
+            </div>
+            <ChevronRight size={16} color={c.textFaint} />
+          </button>
+        ))
+      )}
+
+      {active && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={() => setActive(null)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: c.surface, width: "100%", maxWidth: 520, margin: "0 auto", borderRadius: "24px 24px 0 0", padding: "22px 22px calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "90dvh", overflowY: "auto", fontFamily: fontStack().body }}>
+            <div style={{ fontWeight: 700, fontSize: 17, color: c.text, marginBottom: 4 }}>Review request · {firstName(active.name)}</div>
+            <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>{active.email}</div>
+            <div style={{ fontSize: 13, color: c.textSub, marginBottom: 6, fontWeight: 500 }}>Subject</div>
+            <div style={{ background: c.surfaceAlt, borderRadius: 10, padding: "10px 12px", fontSize: 14, color: c.text, marginBottom: 14 }}>{subjectFor(active)}</div>
+            <div style={{ fontSize: 13, color: c.textSub, marginBottom: 6, fontWeight: 500 }}>Message</div>
+            <textarea value={bodyText} onChange={(e) => setBodyText(e.target.value)} rows={9}
+              style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box", resize: "vertical", fontFamily: fontStack().body, outline: "none", lineHeight: 1.5 }} />
+            <div style={{ display: "flex", gap: 8, margin: "14px 0 10px" }}>
+              <PrimaryButton c={c} full onClick={copy}>{copied ? <><Check size={16} /> Copied</> : <><Copy size={16} /> Copy</>}</PrimaryButton>
+              <GhostButton c={c} full onClick={openMail}><Mail size={16} /> Open in mail</GhostButton>
+            </div>
+            <PrimaryButton c={c} full onClick={markSent}><Check size={16} /> Mark as sent</PrimaryButton>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2789,7 +2907,7 @@ export default function App() {
   const titleMap = {
     dashboard: "Dashboard", reservations: "Reservations", chat: "Chat",
     analytics: user.role === "owner" ? "Analytics" : "My Analytics",
-    more: "More", shifts: "Shifts", staff: "Team", settings: "Settings", orders: "Order supplies",
+    more: "More", shifts: "Shifts", staff: "Team", settings: "Settings", orders: "Order supplies", followups: "Follow-ups",
   };
 
   return (
@@ -2825,6 +2943,7 @@ export default function App() {
           {view === "more" && <MoreScreen c={c} user={user} restaurant={restaurant} setView={setView} isDark={isDark} setIsDark={setIsDark} onSignOut={signOut} onSwitchWorkspace={switchWorkspace} />}
           {view === "settings" && <SettingsScreen c={c} user={user} isDark={isDark} setIsDark={setIsDark} restaurant={restaurant} setRestaurant={updateRestaurant} tables={tables} setTables={setTables} accounts={accounts} setAccounts={setAccounts} />}
           {view === "orders" && <OrderingScreen c={c} products={products} setProducts={setProducts} orderDraft={orderDraft} setOrderDraft={setOrderDraft} restaurant={restaurant} />}
+          {view === "followups" && (user.role === "owner" || user.role === "waiter") && <FollowUpsScreen c={c} reservations={reservations} setReservations={setReservations} restaurant={restaurant} setView={setView} />}
         </div>
         <BottomNav view={view} setView={setView} c={c} />
       </div>
