@@ -2791,6 +2791,14 @@ export default function App() {
     setNewRecovery(recoveryCode);
     setAccounts([owner]);
     setTables(t);
+    // Start the new restaurant empty — otherwise a previous session's data (still
+    // in memory after Sign out, which doesn't clear it) would leak into it.
+    setReservations([]);
+    setShifts([]);
+    setChat({ general: [], floor: [], kitchen: [] });
+    setNotifications([]);
+    setProducts([]);
+    setOrderDraft({});
     setUser(owner);
     setWorkspace(ws);
     setCreatingNew(false);
