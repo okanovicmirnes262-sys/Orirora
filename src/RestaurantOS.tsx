@@ -65,19 +65,20 @@ function OrdioraLogo({ c, size = 120, color, showText = true }) {
   const id = "orclip" + Math.round(size);
   return (
     <svg width={size} height={size} viewBox="0 0 200 200" fill="none" style={{ display: "block" }}>
-      {/* ring with a small open gap at lower-left, like the reference */}
-      <path
-        d="M 62 168 A 82 82 0 1 1 55 158"
-        fill="none" stroke={stroke} strokeWidth="2.4" strokeLinecap="round" opacity="0.9"
+      {/* full ring with a small open gap at lower-left — the ring is the "O",
+         so the wordmark inside reads "RDIORA" (= ORDIORA) */}
+      <circle
+        cx="100" cy="100" r="83" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round"
+        strokeDasharray="486 35" strokeDashoffset="-70" transform="rotate(90 100 100)" opacity="0.92"
       />
       {showText && (
-        <text x="100" y="108" textAnchor="middle" fontFamily="'Cormorant Garamond', 'Georgia', serif"
-          fontSize="34" letterSpacing="3" fill={stroke} style={{ fontWeight: 500 }}>
-          ORDIORA
+        <text x="101" y="111" textAnchor="middle" fontFamily="'Cormorant Garamond', 'Georgia', serif"
+          fontSize="32" letterSpacing="3" fill={stroke} style={{ fontWeight: 500 }}>
+          RDIORA
         </text>
       )}
       {/* the signature dot */}
-      <circle cx="100" cy="150" r="4.5" fill={stroke} />
+      <circle cx="100" cy="147" r="4.6" fill={stroke} />
     </svg>
   );
 }
@@ -87,9 +88,10 @@ function OrdioraMark({ c, size = 34, color }) {
   const stroke = color || c.text;
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none" style={{ display: "block" }}>
-      <path d="M 13 35 A 17 17 0 1 1 11 33" fill="none" stroke={stroke} strokeWidth="1.6" strokeLinecap="round" />
-      <text x="20" y="24.5" textAnchor="middle" fontFamily="'Cormorant Garamond', 'Georgia', serif" fontSize="15" fill={stroke} style={{ fontWeight: 600 }}>O</text>
-      <circle cx="20" cy="30" r="1.5" fill={stroke} />
+      {/* full ring (the "O") with a small gap at lower-left + signature dot */}
+      <circle cx="20" cy="20" r="16.5" fill="none" stroke={stroke} strokeWidth="1.5" strokeLinecap="round"
+        strokeDasharray="97 7" strokeDashoffset="-14" transform="rotate(90 20 20)" />
+      <circle cx="20" cy="29" r="1.5" fill={stroke} />
     </svg>
   );
 }
