@@ -177,9 +177,16 @@ function statusColor(c, status) {
 
 function formatDateLabel(dateStr) {
   const d = new Date(dateStr + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return dateStr || "";
   const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return `${days[d.getDay()].toUpperCase()}, ${months[d.getMonth()]} ${d.getDate()}`;
+}
+
+/* Local calendar date as YYYY-MM-DD — use for date KEYS (shift day, "today"),
+   never toISOString(), which shifts to the previous day in UTC+ timezones. */
+function localDateIso(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function staffById(list, id) {
@@ -877,7 +884,7 @@ function SetupWizard({ c, isDark, setIsDark, onComplete, onCancel }) {
 /* ------------------------------------------------------------------ */
 
 function DashboardScreen({ c, user, reservations, shifts, setView, openNewReservation, canCreate, now }) {
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = localDateIso();
   const todays = reservations.filter((r) => r.date === todayIso);
   const covers = todays.reduce((a, r) => a + r.guests, 0);
   const pending = reservations.filter((r) => r.status === "pending").length;
@@ -1110,7 +1117,7 @@ function ReservationWizard({ c, onClose, onCreate, onUpdate, onDelete, reservati
     date: editing.date, time: editing.time, guests: editing.guests, duration: editing.duration, table: editing.table,
   } : {
     name: "", phone: "", email: "",
-    date: new Date().toISOString().slice(0, 10), time: "19:00", guests: 2, duration: 90, table: "",
+    date: localDateIso(), time: "19:00", guests: 2, duration: 90, table: "",
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -1260,7 +1267,7 @@ function ShiftsScreen({ c, shifts, setShifts, staff, user }) {
   const [newShift, setNewShift] = useState({ staffId: staff[0]?.id, start: "16:00", end: "23:00" });
 
   const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(d.getDate() + i); return d; });
-  const iso = (d) => d.toISOString().slice(0, 10);
+  const iso = (d) => localDateIso(d);
   const canManage = user.role === "owner";
   const totalShifts = shifts.filter((s) => days.some((d) => iso(d) === s.day)).length;
   const staffOnDuty = new Set(shifts.filter((s) => days.some((d) => iso(d) === s.day)).map((s) => s.staffId)).size;
@@ -2463,7 +2470,7 @@ function OrderingScreen({ c, products, setProducts, orderDraft, setOrderDraft, r
     .map((p) => ({ name: p.name, qty: orderDraft[p.id], unit: p.unit }));
   const orderCount = orderRows.length;
 
-  const dateStr = new Date().toISOString().slice(0, 10);
+  const dateStr = localDateIso();
 
   const exportCsv = () => {
     if (!orderRows.length) return;
