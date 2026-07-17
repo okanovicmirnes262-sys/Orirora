@@ -950,7 +950,7 @@ function DashboardScreen({ c, user, reservations, shifts, setView, openNewReserv
         ) : upcoming.map((r) => (
           <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: `1px solid ${c.border}` }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: c.surfaceAlt, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: c.text }}>
-              {r.time.split(":")[0]}<span style={{ fontSize: 9, color: c.textFaint, fontWeight: 500 }}>:{r.time.split(":")[1]}</span>
+              {(r.time || "").split(":")[0]}<span style={{ fontSize: 9, color: c.textFaint, fontWeight: 500 }}>:{(r.time || "").split(":")[1]}</span>
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, fontSize: 14.5, color: c.text }}>{r.name}</div>
@@ -1081,8 +1081,8 @@ function ReservationsScreen({ c, reservations, setReservations, user, openNewRes
                 border: `1px solid ${c.border}`, background: c.surface, boxShadow: c.shadow, cursor: "pointer",
               }}>
                 <div style={{ textAlign: "center", minWidth: 40 }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: c.text }}>{r.time.split(":")[0]}</div>
-                  <div style={{ fontSize: 11, color: c.textFaint }}>:{r.time.split(":")[1]}</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: c.text }}>{(r.time || "").split(":")[0]}</div>
+                  <div style={{ fontSize: 11, color: c.textFaint }}>:{(r.time || "").split(":")[1]}</div>
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1489,7 +1489,7 @@ function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
 
   const peakHours = useMemo(() => {
     const map = {};
-    reservations.forEach((r) => { const h = r.time.split(":")[0] + "h"; map[h] = (map[h] || 0) + 1; });
+    reservations.forEach((r) => { const h = (r.time || "").split(":")[0] + "h"; map[h] = (map[h] || 0) + 1; });
     return Object.entries(map).map(([hour, count]) => ({ hour, count })).sort((a, b) => a.hour.localeCompare(b.hour));
   }, [reservations]);
 
@@ -2718,17 +2718,18 @@ export default function App() {
   const [orderDraft, setOrderDraft] = useState({});  // { productId: quantity }
   const [now, setNow] = useState(() => Date.now());  // minute tick for reservation expiry (device-local)
 
-  // While a workspace's data is being (re)hydrated into state, the persist
-  // effects below MUST NOT fire — otherwise the values we just loaded (or the
-  // empty fallbacks returned when a read fails) get written straight back to
-  // the cloud, which on a failed read would destroy real data. `hydrating`
-  // stays true across the load-triggered render and is cleared one tick later.
-  const hydrating = useRef(false);
+  // Holds the exact object references most recently hydrated from the cloud, per
+  // slice. A persist effect saves only when its slice DIFFERS from this snapshot
+  // — so the values we just loaded (or the empty fallbacks a failed read returns)
+  // are never written straight back (which on a failed read would destroy real
+  // data), while any genuine user edit (a fresh reference) always saves. This is
+  // reference-based, so it's immune to timing and to workspace re-loads that
+  // reuse the same object.
+  const lastLoaded = useRef({});
 
   // Loads every piece of data scoped to one restaurant's workspace, and
   // attempts an auto-login if a remembered session matches this workspace.
   const loadWorkspaceData = async (slug) => {
-    hydrating.current = true;
     const scoped = (key, fallback) => loadKey(`restaurantos:${slug}:${key}`, fallback, true);
     const [rest, accs, tbls, res, sh, ch, notifs, prods, draft, remembered] = await Promise.all([
       scoped("restaurant", null),
@@ -2742,6 +2743,9 @@ export default function App() {
       scoped("orderDraft", {}),
       loadKey("restaurantos:remembered", null, false),
     ]);
+    // Record the loaded references BEFORE applying them so the persist effects
+    // recognise these exact values as "just hydrated" and skip writing them back.
+    lastLoaded.current = { restaurant: rest, accounts: accs, tables: tbls, reservations: res, shifts: sh, chat: ch, notifications: notifs, products: prods, orderDraft: draft };
     setRestaurant(rest);
     setAccounts(accs);
     setTables(tbls);
@@ -2774,19 +2778,10 @@ export default function App() {
     })();
   }, []);
 
-  // Mark hydrating on every workspace (re)load, then release it one tick after
-  // the resulting commit — declared BEFORE the persist effects so it runs first.
-  useEffect(() => {
-    if (!loaded || !workspace) return;
-    hydrating.current = true;
-    const id = setTimeout(() => { hydrating.current = false; }, 0);
-    return () => clearTimeout(id);
-  }, [loaded, workspace]);
-
-  useEffect(() => { if (loaded && workspace && restaurant && !hydrating.current) saveKey(`restaurantos:${workspace.slug}:restaurant`, restaurant, true); }, [restaurant, loaded, workspace]);
-  useEffect(() => { if (loaded && workspace && !hydrating.current) saveKey(`restaurantos:${workspace.slug}:accounts`, accounts, true); }, [accounts, loaded, workspace]);
-  useEffect(() => { if (loaded && workspace && !hydrating.current) saveKey(`restaurantos:${workspace.slug}:tables`, tables, true); }, [tables, loaded, workspace]);
-  useEffect(() => { if (loaded && workspace && !hydrating.current) saveKey(`restaurantos:${workspace.slug}:reservations`, reservations, true); }, [reservations, loaded, workspace]);
+  useEffect(() => { if (loaded && workspace && restaurant && restaurant !== lastLoaded.current.restaurant) saveKey(`restaurantos:${workspace.slug}:restaurant`, restaurant, true); }, [restaurant, loaded, workspace]);
+  useEffect(() => { if (loaded && workspace && accounts !== lastLoaded.current.accounts) saveKey(`restaurantos:${workspace.slug}:accounts`, accounts, true); }, [accounts, loaded, workspace]);
+  useEffect(() => { if (loaded && workspace && tables !== lastLoaded.current.tables) saveKey(`restaurantos:${workspace.slug}:tables`, tables, true); }, [tables, loaded, workspace]);
+  useEffect(() => { if (loaded && workspace && reservations !== lastLoaded.current.reservations) saveKey(`restaurantos:${workspace.slug}:reservations`, reservations, true); }, [reservations, loaded, workspace]);
 
   // Once a reservation's end time (date + time + duration) passes, finalize its
   // status — seated → completed, pending/confirmed → no-show (cancelled/completed/
@@ -2810,11 +2805,11 @@ export default function App() {
     const id = setInterval(() => { applyExpiry(); setNow(Date.now()); }, 60000);
     return () => clearInterval(id);
   }, [loaded, workspace]);
-  useEffect(() => { if (loaded && workspace && !hydrating.current) saveKey(`restaurantos:${workspace.slug}:shifts`, shifts, true); }, [shifts, loaded, workspace]);
-  useEffect(() => { if (loaded && workspace && !hydrating.current) saveKey(`restaurantos:${workspace.slug}:chat`, chat, true); }, [chat, loaded, workspace]);
-  useEffect(() => { if (loaded && workspace && !hydrating.current) saveKey(`restaurantos:${workspace.slug}:notifications`, notifications, true); }, [notifications, loaded, workspace]);
-  useEffect(() => { if (loaded && workspace && !hydrating.current) saveKey(`restaurantos:${workspace.slug}:products`, products, true); }, [products, loaded, workspace]);
-  useEffect(() => { if (loaded && workspace && !hydrating.current) saveKey(`restaurantos:${workspace.slug}:orderDraft`, orderDraft, true); }, [orderDraft, loaded, workspace]);
+  useEffect(() => { if (loaded && workspace && shifts !== lastLoaded.current.shifts) saveKey(`restaurantos:${workspace.slug}:shifts`, shifts, true); }, [shifts, loaded, workspace]);
+  useEffect(() => { if (loaded && workspace && chat !== lastLoaded.current.chat) saveKey(`restaurantos:${workspace.slug}:chat`, chat, true); }, [chat, loaded, workspace]);
+  useEffect(() => { if (loaded && workspace && notifications !== lastLoaded.current.notifications) saveKey(`restaurantos:${workspace.slug}:notifications`, notifications, true); }, [notifications, loaded, workspace]);
+  useEffect(() => { if (loaded && workspace && products !== lastLoaded.current.products) saveKey(`restaurantos:${workspace.slug}:products`, products, true); }, [products, loaded, workspace]);
+  useEffect(() => { if (loaded && workspace && orderDraft !== lastLoaded.current.orderDraft) saveKey(`restaurantos:${workspace.slug}:orderDraft`, orderDraft, true); }, [orderDraft, loaded, workspace]);
   useEffect(() => { if (loaded) saveKey("restaurantos:theme", { isDark }, false); }, [isDark, loaded]);
 
   const c = PALETTE[isDark ? "dark" : "light"];
