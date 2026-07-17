@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
-  Menu, X, Bell, Sun, Moon, Home, CalendarDays, Clock, MessageSquare,
+  Bell, Sun, Moon, Home, CalendarDays, Clock, MessageSquare,
   BarChart3, Users, ChevronRight, ChevronLeft, Plus, Check, LogOut,
   ChefHat, UtensilsCrossed, Phone, Mail, User as UserIcon, LayoutGrid,
-  Settings as SettingsIcon, ArrowUpRight, ArrowDownRight, Wine, MoreHorizontal,
+  Settings as SettingsIcon, ArrowDownRight, Wine, MoreHorizontal,
   CircleUser, Loader2, ChevronDown, Trash2, Copy, CheckCircle2, Store,
-  KeyRound, Search, Eye, EyeOff, Pencil, Filter,
+  KeyRound, Search, Eye, EyeOff, Pencil,
   ShoppingCart, Upload, Download, Minus, FileText, Image as ImageIcon
 } from "lucide-react";
 import {
@@ -48,6 +48,11 @@ const ROLE_META = {
   waiter: { label: "Waiter", accentKey: "textSub", icon: Wine },
   chef: { label: "Chef", accentKey: "textSub", icon: ChefHat },
 };
+
+// Safe lookup — a stale/unknown role from cloud data must not crash the UI.
+function roleMeta(role) {
+  return ROLE_META[role] || { label: role || "Staff", accentKey: "textFaint", icon: CircleUser };
+}
 
 const fontStack = () => ({
   display: "'Cormorant Garamond', 'Fraunces', 'Georgia', serif",
@@ -96,6 +101,18 @@ const STATUS_LIST = ["pending", "confirmed", "seated", "completed", "cancelled",
 /* ------------------------------------------------------------------ */
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+
+/* Copy to clipboard; resolves only if it actually succeeded (writeText is async
+   and is undefined on insecure/unsupported contexts) so the UI never falsely
+   claims "Copied". */
+function copyToClipboard(text) {
+  try {
+    const p = navigator.clipboard && navigator.clipboard.writeText(String(text == null ? "" : text));
+    return p && typeof p.then === "function" ? p : Promise.reject(new Error("no clipboard"));
+  } catch (e) {
+    return Promise.reject(e);
+  }
+}
 
 function initials(name) {
   return (name || "?").split(" ").map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
@@ -309,7 +326,7 @@ async function saveKey(key, value, shared) {
 /* ------------------------------------------------------------------ */
 
 function Avatar({ name, role, size = 36, c }) {
-  const ring = role ? c[ROLE_META[role].accentKey] : c.textFaint;
+  const ring = role ? c[roleMeta(role).accentKey] : c.textFaint;
   return (
     <div style={{
       width: size, height: size, borderRadius: "9999px", display: "flex", alignItems: "center",
@@ -886,10 +903,13 @@ function SetupWizard({ c, isDark, setIsDark, onComplete, onCancel }) {
 function DashboardScreen({ c, user, reservations, shifts, setView, openNewReservation, canCreate, now }) {
   const todayIso = localDateIso();
   const todays = reservations.filter((r) => r.date === todayIso);
-  const covers = todays.reduce((a, r) => a + r.guests, 0);
+  const covers = todays.reduce((a, r) => a + (Number(r.guests) || 0), 0);
   const pending = reservations.filter((r) => r.status === "pending").length;
   const activeShifts = shifts.filter((s) => s.day === todayIso).length;
-  const upcoming = todays.filter((r) => r.status !== "cancelled" && !isPastReservation(r, now)).slice(0, 3);
+  const upcoming = todays
+    .filter((r) => r.status !== "cancelled" && !isPastReservation(r, now))
+    .sort((a, b) => (a.time || "").localeCompare(b.time || ""))
+    .slice(0, 3);
 
   const quickActions = [
     { label: "New Reservation", sub: "Book a table for a guest", icon: CalendarDays, accent: c.green, action: openNewReservation, show: canCreate },
@@ -982,7 +1002,7 @@ function ReservationsScreen({ c, reservations, setReservations, user, openNewRes
       // (not-yet-ended) reservations so finished ones drop off automatically.
       if (statusFilter === "past") { if (!past) return false; }
       else { if (past) return false; if (statusFilter !== "all" && r.status !== statusFilter) return false; }
-      if (search.trim() && !(r.name.toLowerCase().includes(search.toLowerCase()) || r.table.toLowerCase().includes(search.toLowerCase()))) return false;
+      if (search.trim() && !((r.name || "").toLowerCase().includes(search.toLowerCase()) || (r.table || "").toLowerCase().includes(search.toLowerCase()))) return false;
       return true;
     });
   }, [reservations, search, statusFilter, now]);
@@ -1070,7 +1090,7 @@ function ReservationsScreen({ c, reservations, setReservations, user, openNewRes
                     <Badge c={c} label={r.status} color={statusColor(c, r.status)} />
                   </div>
                   <div style={{ fontSize: 12.5, color: c.textSub, marginTop: 3, display: "flex", gap: 10 }}>
-                    <span>{r.guests} guests</span><span>{r.table}</span><span>{r.duration} min</span>
+                    <span>{r.guests} guests</span><span>{r.table || "—"}</span><span>{r.duration || 90} min</span>
                   </div>
                 </div>
                 {user.role === "owner" && (
@@ -1134,7 +1154,10 @@ function ReservationWizard({ c, onClose, onCreate, onUpdate, onDelete, reservati
   };
 
   const submit = () => {
-    const payload = { ...form, guests: Number(form.guests), duration: Number(form.duration) };
+    // A blank/0/negative duration would make the booking "already ended", so it
+    // would instantly vanish and get auto-marked no-show — clamp to a sane value.
+    const dur = Number(form.duration);
+    const payload = { ...form, guests: Math.max(1, Number(form.guests) || 1), duration: dur > 0 ? dur : 90 };
     if (editing) onUpdate(editing.id, payload);
     else onCreate({ id: uid(), ...payload, status: "pending" });
     onClose();
@@ -1325,7 +1348,7 @@ function ShiftsScreen({ c, shifts, setShifts, staff, user }) {
                   <Avatar c={c} name={person.name} role={person.role} size={30} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 600, color: c.text }}>{person.name}</div>
-                    <div style={{ fontSize: 11.5, color: c.textSub }}>{s.start} – {s.end} · {ROLE_META[person.role].label}</div>
+                    <div style={{ fontSize: 11.5, color: c.textSub }}>{s.start} – {s.end} · {roleMeta(person.role).label}</div>
                   </div>
                   {canManage && <button onClick={() => removeShift(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textFaint }}><Trash2 size={15} /></button>}
                 </div>
@@ -1342,7 +1365,7 @@ function ShiftsScreen({ c, shifts, setShifts, staff, user }) {
             <div style={{ fontSize: 13, color: c.textSub, marginBottom: 6 }}>Staff member</div>
             <select value={newShift.staffId} onChange={(e) => setNewShift({ ...newShift, staffId: e.target.value })}
               style={{ width: "100%", padding: 12, borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, marginBottom: 14, fontSize: 16, boxSizing: "border-box" }}>
-              {staff.map((s) => <option key={s.id} value={s.id}>{s.name} ({ROLE_META[s.role].label})</option>)}
+              {staff.map((s) => <option key={s.id} value={s.id}>{s.name} ({roleMeta(s.role).label})</option>)}
             </select>
             <div style={{ display: "flex", gap: 10 }}>
               <TextInput c={c} label="Start" type="time" value={newShift.start} onChange={(v) => setNewShift({ ...newShift, start: v })} />
@@ -1407,7 +1430,7 @@ function ChatScreen({ c, chat, setChat, staff, user, notify }) {
         ) : messages.map((m) => {
           const author = staffById(staff, m.staffId);
           const mine = author?.id === me?.id;
-          const accent = author ? c[ROLE_META[author.role].accentKey] : c.textFaint;
+          const accent = author ? c[roleMeta(author.role).accentKey] : c.textFaint;
           return (
             <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start", marginBottom: 14 }}>
               <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4, flexDirection: mine ? "row-reverse" : "row" }}>
@@ -1451,7 +1474,7 @@ function ChatScreen({ c, chat, setChat, staff, user, notify }) {
 function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
   const isOwner = user.role === "owner";
   const totalRes = reservations.length;
-  const totalGuests = reservations.reduce((a, r) => a + r.guests, 0);
+  const totalGuests = reservations.reduce((a, r) => a + (Number(r.guests) || 0), 0);
   const confirmed = reservations.filter((r) => r.status === "confirmed").length;
   const completed = reservations.filter((r) => r.status === "completed").length;
   const cancelled = reservations.filter((r) => r.status === "cancelled").length;
@@ -1580,7 +1603,7 @@ function CredentialsModal({ c, account, restaurant, onClose }) {
   const [copied, setCopied] = useState(false);
   const text = `ORDIORA login for ${restaurant.name}\nRestaurant: ${restaurant.name}\nPassword: ${account.password}`;
   const copy = () => {
-    try { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (e) {}
+    copyToClipboard(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
   };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 70, padding: 20 }}>
@@ -1608,7 +1631,7 @@ function CredentialsModal({ c, account, restaurant, onClose }) {
 function RecoveryCodeModal({ c, code, restaurant, onClose }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
-    try { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (e) {}
+    copyToClipboard(code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
   };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 75, padding: 20 }}>
@@ -1647,6 +1670,7 @@ function StaffScreen({ c, staff, setStaff, user, restaurant, onPasswordChanged }
   const saveReset = () => {
     const next = pwValue.trim();
     if (next.length < 6) { setPwErr("At least 6 characters."); return; }
+    if (staff.some((a) => a.id !== pwTarget.id && a.password === next)) { setPwErr("That password is already in use by another account."); return; }
     setStaff((prev) => prev.map((a) => a.id === pwTarget.id ? { ...a, password: next } : a));
     if (onPasswordChanged) onPasswordChanged(pwTarget.id, next);
     setRevealed((r) => ({ ...r, [pwTarget.id]: true }));
@@ -1694,7 +1718,7 @@ function StaffScreen({ c, staff, setStaff, user, restaurant, onPasswordChanged }
                 <div style={{ fontWeight: 700, fontSize: 14.5, color: c.text }}>{s.name}{s.id === user.id ? " (you)" : ""}</div>
                 <div style={{ fontSize: 12.5, color: c.textSub, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.email}</div>
               </div>
-              <Badge c={c} label={ROLE_META[s.role].label} color={c[ROLE_META[s.role].accentKey]} />
+              <Badge c={c} label={roleMeta(s.role).label} color={c[roleMeta(s.role).accentKey]} />
               {canManage && s.role !== "owner" && (
                 <button onClick={() => setRemoveTarget(s)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textFaint }}><Trash2 size={16} /></button>
               )}
@@ -1783,7 +1807,7 @@ function MoreScreen({ c, user, restaurant, setView, isDark, setIsDark, onSignOut
         <Avatar c={c} name={user.name} role={user.role} size={46} />
         <div>
           <div style={{ fontWeight: 700, fontSize: 15.5, color: c.text }}>{user.name}</div>
-          <div style={{ fontSize: 13, color: c.textSub }}>{ROLE_META[user.role].label} · {restaurant?.name}</div>
+          <div style={{ fontSize: 13, color: c.textSub }}>{roleMeta(user.role).label} · {restaurant?.name}</div>
         </div>
       </SectionCard>
       <SectionCard c={c} style={{ padding: 6, marginBottom: 16 }}>
@@ -1829,8 +1853,12 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
 
   const [reviewUrl, setReviewUrl] = useState(restaurant.googleReviewUrl || "");
   const [savedReview, setSavedReview] = useState(false);
+  const [reviewErr, setReviewErr] = useState("");
   const saveReviewUrl = () => {
-    setRestaurant({ ...restaurant, googleReviewUrl: reviewUrl.trim() });
+    const v = reviewUrl.trim();
+    if (v && !/^https?:\/\/\S+/i.test(v)) { setReviewErr("Enter a full link starting with https://"); return; }
+    setReviewErr("");
+    setRestaurant({ ...restaurant, googleReviewUrl: v });
     setSavedReview(true);
     setTimeout(() => setSavedReview(false), 1500);
   };
@@ -1845,7 +1873,7 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
   const [copiedCode, setCopiedCode] = useState(false);
   const setRecoveryCode = (code) => setRestaurant({ ...restaurant, recoveryCode: code });
   const copyCode = () => {
-    try { navigator.clipboard.writeText(restaurant.recoveryCode || ""); setCopiedCode(true); setTimeout(() => setCopiedCode(false), 1500); } catch (e) {}
+    copyToClipboard(restaurant.recoveryCode || "").then(() => { setCopiedCode(true); setTimeout(() => setCopiedCode(false), 1500); }).catch(() => {});
   };
 
   const saveRestaurant = () => {
@@ -1861,6 +1889,8 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
     if (!me || me.password !== curPass) { setPassErr("Current password is incorrect."); return; }
     if (newPass.length < 6) { setPassErr("New password must be at least 6 characters."); return; }
     if (newPass !== confirmPass) { setPassErr("New passwords don't match."); return; }
+    // Passwords are the login discriminator within a restaurant — keep them unique.
+    if (accounts.some((a) => a.id !== user.id && a.password === newPass)) { setPassErr("That password is already in use by another account. Choose a different one."); return; }
     setAccounts((prev) => prev.map((a) => a.id === user.id ? { ...a, password: newPass } : a));
     if (onPasswordChanged) onPasswordChanged(user.id, newPass);
     setCurPass(""); setNewPass(""); setConfirmPass("");
@@ -1911,12 +1941,14 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
           <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>Set the link guests use to leave a review — used by Follow-ups.</div>
           <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <input value={reviewUrl} onChange={(e) => setReviewUrl(e.target.value)} placeholder="https://g.page/r/..." inputMode="url"
-                style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
+              <input value={reviewUrl} onChange={(e) => { setReviewUrl(e.target.value); setReviewErr(""); }} placeholder="https://g.page/r/..." inputMode="url"
+                style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${reviewErr ? c.rose : c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
             </div>
             <PrimaryButton c={c} onClick={saveReviewUrl} style={{ padding: "12px 18px" }}>{savedReview ? <Check size={16} /> : "Save"}</PrimaryButton>
           </div>
-          <div style={{ fontSize: 12, color: c.textFaint, marginTop: 8 }}>Paste the review link from your Google Business Profile.</div>
+          {reviewErr
+            ? <div style={{ fontSize: 12, color: c.rose, marginTop: 8 }}>{reviewErr}</div>
+            : <div style={{ fontSize: 12, color: c.textFaint, marginTop: 8 }}>Paste the review link from your Google Business Profile.</div>}
         </SectionCard>
       )}
 
@@ -1973,7 +2005,7 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
         <div style={{ fontSize: 13.5, color: c.textSub, lineHeight: 1.9 }}>
           <div>Restaurant: <b style={{ color: c.text }}>{restaurant.name}</b></div>
           <div>Signed in as <b style={{ color: c.text }}>{user.name}</b></div>
-          <div>Role: {ROLE_META[user.role].label}</div>
+          <div>Role: {roleMeta(user.role).label}</div>
         </div>
       </SectionCard>
     </div>
@@ -2006,7 +2038,7 @@ function FollowUpsScreen({ c, reservations, setReservations, restaurant, setView
     `Srdačan pozdrav,\n${(restaurant && restaurant.name) || ""}`;
 
   const openGuest = (r) => { setBodyText(bodyFor(r)); setCopied(false); setActive(r); };
-  const copy = () => { try { navigator.clipboard.writeText(bodyText); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (e) {} };
+  const copy = () => { copyToClipboard(bodyText).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {}); };
   const openMail = () => {
     if (!active) return;
     window.location.href = `mailto:${encodeURIComponent(active.email)}?subject=${encodeURIComponent(subjectFor(active))}&body=${encodeURIComponent(bodyText)}`;
@@ -2788,7 +2820,8 @@ export default function App() {
   const c = PALETTE[isDark ? "dark" : "light"];
 
   const notify = (type, text) => {
-    setNotifications((prev) => [...prev, { id: uid(), type, text, time: Date.now(), read: false }]);
+    // Cap history so the blob (and every write/load of it) can't grow unbounded.
+    setNotifications((prev) => [...prev, { id: uid(), type, text, time: Date.now(), read: false }].slice(-50));
   };
 
   const completeSetup = ({ restaurant: r, owner, tables: t, remember }) => {
@@ -2855,6 +2888,7 @@ export default function App() {
     const accs = await loadKey(`restaurantos:${entry.slug}:accounts`, [], true);
     const idx = accs.findIndex((a) => a.role === "owner");
     if (idx === -1) return { ok: false, error: "No owner account found." };
+    if (accs.some((a, i) => i !== idx && a.password === newPassword)) return { ok: false, error: "That password is already in use by a staff account. Choose a different one." };
     const nextAccs = accs.map((a, i) => i === idx ? { ...a, password: newPassword } : a);
     await saveKey(`restaurantos:${entry.slug}:accounts`, nextAccs, true);
     return { ok: true };
@@ -2946,6 +2980,20 @@ export default function App() {
 
   if (!user) {
     return <LoginScreen c={c} isDark={isDark} setIsDark={setIsDark} onLogin={loginWithNameAndPassword} onRecover={recoverOwnerPassword} onCreateNew={() => setCreatingNew(true)} />;
+  }
+
+  // Signed in but the restaurant record didn't load (e.g. a transient read
+  // failure) — offer a retry instead of crashing screens that assume it exists.
+  if (!restaurant) {
+    return (
+      <div style={{ minHeight: "100dvh", background: c.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, fontFamily: fontStack().body }}>
+        <div style={{ color: c.textSub, fontSize: 14.5, textAlign: "center", maxWidth: 300, lineHeight: 1.5 }}>Couldn't load this restaurant's data. Check your connection and try again.</div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <PrimaryButton c={c} onClick={() => window.location.reload()}>Retry</PrimaryButton>
+          <GhostButton c={c} onClick={signOut}>Sign out</GhostButton>
+        </div>
+      </div>
+    );
   }
 
   const canCreateReservation = user.role === "owner" || user.role === "waiter";
