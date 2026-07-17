@@ -568,6 +568,9 @@ function TableManager({ c, tables, setTables, compact }) {
     setCount(4);
   };
   const removeTable = (id) => setTables((prev) => prev.filter((t) => t.id !== id));
+  const setCapacityFor = (id, value) => setTables((prev) => prev.map((t) => t.id === id ? { ...t, capacity: Math.max(1, Math.min(99, Math.round(Number(value) || 1))) } : t));
+  const stepCapacity = (t, d) => setCapacityFor(t.id, (Number(t.capacity) || 1) + d);
+  const stepBtn = { width: 26, height: 26, borderRadius: 8, border: `1px solid ${c.border}`, background: c.surface, color: c.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 };
 
   return (
     <div>
@@ -578,10 +581,16 @@ function TableManager({ c, tables, setTables, compact }) {
             {zoneName.toUpperCase()} · {list.length}
           </div>
           {list.map((t) => (
-            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: `1px solid ${c.border}` }}>
-              <div style={{ flex: 1, fontWeight: 600, fontSize: 14, color: c.text }}>{t.name}</div>
-              <div style={{ fontSize: 12.5, color: c.textSub }}>Seats {t.capacity}</div>
-              <button onClick={() => removeTable(t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textFaint }}><Trash2 size={14} /></button>
+            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderTop: `1px solid ${c.border}` }}>
+              <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: 14, color: c.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</div>
+              <span style={{ fontSize: 11, color: c.textFaint, flexShrink: 0 }}>Seats</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                <button onClick={() => stepCapacity(t, -1)} style={stepBtn} aria-label="Fewer seats"><Minus size={13} /></button>
+                <input value={t.capacity} onChange={(e) => setCapacityFor(t.id, e.target.value)} inputMode="numeric"
+                  style={{ width: 36, textAlign: "center", padding: "5px 2px", borderRadius: 8, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
+                <button onClick={() => stepCapacity(t, 1)} style={stepBtn} aria-label="More seats"><Plus size={13} /></button>
+              </div>
+              <button onClick={() => removeTable(t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textFaint, flexShrink: 0 }}><Trash2 size={14} /></button>
             </div>
           ))}
         </div>
