@@ -208,6 +208,19 @@ function relativeTime(ts) {
   return `${days}d ago`;
 }
 
+/* Absolute end instant of a reservation = date + time + duration minutes.
+   Uses a real Date (handles cross-midnight); returns NaN for malformed data. */
+function reservationEndTs(r) {
+  if (!r || !r.date || !r.time) return NaN;
+  const start = new Date(`${r.date}T${r.time}`).getTime();
+  if (Number.isNaN(start)) return NaN;
+  return start + (Number(r.duration) || 0) * 60000;
+}
+function isPastReservation(r, now) {
+  const end = reservationEndTs(r);
+  return !Number.isNaN(end) && end <= now;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Storage                                                             */
 /* ------------------------------------------------------------------ */
@@ -854,13 +867,13 @@ function SetupWizard({ c, isDark, setIsDark, onComplete, onCancel }) {
 /*  Dashboard                                                           */
 /* ------------------------------------------------------------------ */
 
-function DashboardScreen({ c, user, reservations, shifts, setView, openNewReservation, canCreate }) {
+function DashboardScreen({ c, user, reservations, shifts, setView, openNewReservation, canCreate, now }) {
   const todayIso = new Date().toISOString().slice(0, 10);
   const todays = reservations.filter((r) => r.date === todayIso);
   const covers = todays.reduce((a, r) => a + r.guests, 0);
   const pending = reservations.filter((r) => r.status === "pending").length;
   const activeShifts = shifts.filter((s) => s.day === todayIso).length;
-  const upcoming = todays.filter((r) => r.status !== "cancelled").slice(0, 3);
+  const upcoming = todays.filter((r) => r.status !== "cancelled" && !isPastReservation(r, now)).slice(0, 3);
 
   const quickActions = [
     { label: "New Reservation", sub: "Book a table for a guest", icon: CalendarDays, accent: c.green, action: openNewReservation, show: canCreate },
@@ -941,18 +954,22 @@ function DashboardScreen({ c, user, reservations, shifts, setView, openNewReserv
 /*  Reservations                                                       */
 /* ------------------------------------------------------------------ */
 
-function ReservationsScreen({ c, reservations, setReservations, user, openNewReservation, openEditReservation, canCreate }) {
+function ReservationsScreen({ c, reservations, setReservations, user, openNewReservation, openEditReservation, canCreate, now }) {
   const [open, setOpen] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
   const filtered = useMemo(() => {
     return reservations.filter((r) => {
-      if (statusFilter !== "all" && r.status !== statusFilter) return false;
+      const past = isPastReservation(r, now);
+      // The "Past" filter shows history; every other view shows only active
+      // (not-yet-ended) reservations so finished ones drop off automatically.
+      if (statusFilter === "past") { if (!past) return false; }
+      else { if (past) return false; if (statusFilter !== "all" && r.status !== statusFilter) return false; }
       if (search.trim() && !(r.name.toLowerCase().includes(search.toLowerCase()) || r.table.toLowerCase().includes(search.toLowerCase()))) return false;
       return true;
     });
-  }, [reservations, search, statusFilter]);
+  }, [reservations, search, statusFilter, now]);
 
   const grouped = useMemo(() => {
     const g = {};
@@ -984,7 +1001,7 @@ function ReservationsScreen({ c, reservations, setReservations, user, openNewRes
               style={{ width: "100%", padding: "11px 12px 11px 36px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
           </div>
           <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 16, paddingBottom: 2 }}>
-            {["all", ...STATUS_LIST].map((st) => (
+            {["all", ...STATUS_LIST, "past"].map((st) => (
               <button key={st} onClick={() => setStatusFilter(st)} style={{
                 flexShrink: 0, fontSize: 12, fontWeight: 600, padding: "7px 12px", borderRadius: 999, cursor: "pointer",
                 border: `1px solid ${statusFilter === st ? c.text : c.border}`,
@@ -1006,6 +1023,11 @@ function ReservationsScreen({ c, reservations, setReservations, user, openNewRes
           <EmptyState c={c} icon={CalendarDays} title="No reservations yet"
             message={canCreate ? "Bookings you create will appear here, grouped by date." : "Once the team starts booking tables, they'll show up here."}
             actionLabel={canCreate ? "New reservation" : null} onAction={openNewReservation} />
+        ) : statusFilter === "past" ? (
+          <EmptyState c={c} icon={Clock} title="No past reservations" message="Finished bookings will appear here once their time has passed." />
+        ) : statusFilter === "all" ? (
+          <EmptyState c={c} icon={CalendarDays} title="Nothing coming up"
+            message="No active reservations right now. Finished ones move to the Past tab automatically." />
         ) : (
           <EmptyState c={c} icon={Search} title="No matches" message="Try a different name, table, or status filter." />
         )
@@ -2526,6 +2548,7 @@ export default function App() {
   const [notifications, setNotifications] = useState([]);
   const [products, setProducts] = useState([]);     // supplies catalog
   const [orderDraft, setOrderDraft] = useState({});  // { productId: quantity }
+  const [now, setNow] = useState(() => Date.now());  // minute tick for reservation expiry (device-local)
 
   // Loads every piece of data scoped to one restaurant's workspace, and
   // attempts an auto-login if a remembered session matches this workspace.
@@ -2579,6 +2602,29 @@ export default function App() {
   useEffect(() => { if (loaded && workspace) saveKey(`restaurantos:${workspace.slug}:accounts`, accounts, true); }, [accounts, loaded, workspace]);
   useEffect(() => { if (loaded && workspace) saveKey(`restaurantos:${workspace.slug}:tables`, tables, true); }, [tables, loaded, workspace]);
   useEffect(() => { if (loaded && workspace) saveKey(`restaurantos:${workspace.slug}:reservations`, reservations, true); }, [reservations, loaded, workspace]);
+
+  // Once a reservation's end time (date + time + duration) passes, finalize its
+  // status — seated → completed, pending/confirmed → no-show (cancelled/completed/
+  // no-show untouched) — so past bookings resolve and drop out of the active list.
+  // Runs while the app is open (on load + every 60s); catches up on next open.
+  useEffect(() => {
+    if (!loaded || !workspace) return;
+    const applyExpiry = () => setReservations((prev) => {
+      let changed = false;
+      const next = prev.map((r) => {
+        if (!isPastReservation(r, Date.now())) return r;
+        let s = r.status;
+        if (s === "seated") s = "completed";
+        else if (s === "pending" || s === "confirmed") s = "no-show";
+        if (s !== r.status) { changed = true; return { ...r, status: s }; }
+        return r;
+      });
+      return changed ? next : prev; // same ref when nothing changed → no persist churn
+    });
+    applyExpiry();
+    const id = setInterval(() => { applyExpiry(); setNow(Date.now()); }, 60000);
+    return () => clearInterval(id);
+  }, [loaded, workspace]);
   useEffect(() => { if (loaded && workspace) saveKey(`restaurantos:${workspace.slug}:shifts`, shifts, true); }, [shifts, loaded, workspace]);
   useEffect(() => { if (loaded && workspace) saveKey(`restaurantos:${workspace.slug}:chat`, chat, true); }, [chat, loaded, workspace]);
   useEffect(() => { if (loaded && workspace) saveKey(`restaurantos:${workspace.slug}:notifications`, notifications, true); }, [notifications, loaded, workspace]);
@@ -2761,8 +2807,8 @@ export default function App() {
         <TopBar c={c} title={titleMap[view]} isDark={isDark} setIsDark={setIsDark}
           notifications={notifications} notifOpen={notifOpen} unreadCount={unreadCount} onOpenNotifications={toggleNotifications} />
         <div style={{ flex: 1 }}>
-          {view === "dashboard" && <DashboardScreen c={c} user={user} reservations={reservations} shifts={shifts} setView={setView} openNewReservation={() => setResModal("new")} canCreate={canCreateReservation} />}
-          {view === "reservations" && <ReservationsScreen c={c} reservations={reservations} setReservations={setReservations} user={user} openNewReservation={() => setResModal("new")} openEditReservation={(r) => setResModal(r)} canCreate={canCreateReservation} />}
+          {view === "dashboard" && <DashboardScreen c={c} user={user} reservations={reservations} shifts={shifts} setView={setView} openNewReservation={() => setResModal("new")} canCreate={canCreateReservation} now={now} />}
+          {view === "reservations" && <ReservationsScreen c={c} reservations={reservations} setReservations={setReservations} user={user} openNewReservation={() => setResModal("new")} openEditReservation={(r) => setResModal(r)} canCreate={canCreateReservation} now={now} />}
           {view === "shifts" && <ShiftsScreen c={c} shifts={shifts} setShifts={setShifts} staff={accounts} user={user} />}
           {view === "chat" && <ChatScreen c={c} chat={chat} setChat={setChat} staff={accounts} user={user} notify={notify} />}
           {view === "analytics" && <AnalyticsScreen c={c} reservations={reservations} shifts={shifts} staff={accounts} user={user} />}
