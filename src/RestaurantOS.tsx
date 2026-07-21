@@ -375,6 +375,35 @@ function plural(n, en, hr) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Responsive breakpoints                                             */
+/* ------------------------------------------------------------------ */
+/* The whole UI is inline-styled, so there are no CSS media queries — layout
+   adapts through this hook instead. Returns "mobile" | "tablet" | "desktop"
+   and re-renders any component that uses it when the viewport crosses 768px or
+   1024px. Any component may call it directly, so no prop drilling is needed. */
+function readBreakpoint() {
+  if (typeof window === "undefined" || !window.matchMedia) return "mobile";
+  if (window.matchMedia("(min-width: 1024px)").matches) return "desktop";
+  if (window.matchMedia("(min-width: 768px)").matches) return "tablet";
+  return "mobile";
+}
+function useBreakpoint() {
+  const [bp, setBp] = useState(readBreakpoint);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mqls = [
+      window.matchMedia("(min-width: 1024px)"),
+      window.matchMedia("(min-width: 768px)"),
+    ];
+    const onChange = () => setBp(readBreakpoint());
+    mqls.forEach((m) => m.addEventListener?.("change", onChange));
+    onChange();
+    return () => mqls.forEach((m) => m.removeEventListener?.("change", onChange));
+  }, []);
+  return bp;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Design tokens                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -926,6 +955,92 @@ function BottomNav({ view, setView, c }) {
   );
 }
 
+/* Desktop-only left navigation. Replaces the bottom bar on wide screens and
+   also surfaces the "More" destinations (orders/shifts/team/follow-ups/settings)
+   directly, plus theme + account actions — so nothing from the mobile More
+   screen is lost. */
+function SideNav({ view, setView, c, user, restaurant, isDark, setIsDark, onSignOut, onSwitchWorkspace }) {
+  const primary = [
+    { key: "dashboard", label: "Home", icon: Home },
+    { key: "reservations", label: "Bookings", icon: CalendarDays },
+    { key: "chat", label: "Chat", icon: MessageSquare },
+    { key: "analytics", label: "Analytics", icon: BarChart3 },
+  ];
+  const secondary = [
+    { key: "orders", label: "Order supplies", icon: ShoppingCart },
+    { key: "shifts", label: "Shifts", icon: Clock },
+    { key: "staff", label: "Team", icon: Users },
+    ...((user.role === "owner" || user.role === "waiter")
+      ? [{ key: "followups", label: "Follow-ups", icon: Mail }]
+      : []),
+    { key: "settings", label: "Settings", icon: SettingsIcon },
+  ];
+  const NavButton = ({ item }) => {
+    const active = view === item.key;
+    const Icon = item.icon;
+    return (
+      <button onClick={() => setView(item.key)} style={{
+        display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", cursor: "pointer",
+        padding: "10px 12px", borderRadius: 12, border: "none", marginBottom: 2,
+        background: active ? c.surfaceAlt : "transparent", color: active ? c.text : c.textSub,
+        fontWeight: active ? 700 : 500, fontSize: 14,
+      }}>
+        <Icon size={18} strokeWidth={active ? 2.4 : 2} color={active ? c.text : c.textSub} />
+        {tr(item.label)}
+      </button>
+    );
+  };
+  return (
+    <div style={{
+      width: 250, flexShrink: 0, position: "sticky", top: 0, alignSelf: "flex-start", height: "100dvh",
+      background: c.surface, borderRight: `1px solid ${c.border}`, display: "flex", flexDirection: "column",
+      padding: "22px 16px", boxSizing: "border-box",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 6px", marginBottom: 22 }}>
+        <OrdioraMark c={c} size={30} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: c.text, fontFamily: fontStack().display, letterSpacing: "0.3px" }}>ORDIORA</div>
+          <div style={{ fontSize: 11.5, color: c.textFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{restaurant?.name}</div>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+        {primary.map((item) => <NavButton key={item.key} item={item} />)}
+        <div style={{ height: 1, background: c.border, margin: "12px 6px" }} />
+        {secondary.map((item) => <NavButton key={item.key} item={item} />)}
+      </div>
+
+      <div style={{ borderTop: `1px solid ${c.border}`, paddingTop: 12, marginTop: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 6px 12px" }}>
+          <Avatar c={c} name={user.name} role={user.role} size={34} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: c.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name}</div>
+            <div style={{ fontSize: 11.5, color: c.textFaint }}>{tr(roleMeta(user.role).label)}</div>
+          </div>
+        </div>
+        <button onClick={() => setIsDark(!isDark)} style={{
+          display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", cursor: "pointer",
+          padding: "9px 12px", borderRadius: 12, border: "none", background: "transparent", color: c.textSub, fontWeight: 600, fontSize: 13,
+        }}>
+          {isDark ? <Moon size={16} /> : <Sun size={16} />} {isDark ? tr("Dark mode") : tr("Light mode")}
+        </button>
+        <button onClick={onSwitchWorkspace} style={{
+          display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", cursor: "pointer",
+          padding: "9px 12px", borderRadius: 12, border: "none", background: "transparent", color: c.textSub, fontWeight: 600, fontSize: 13,
+        }}>
+          <Store size={16} /> {tr("Switch restaurant")}
+        </button>
+        <button onClick={onSignOut} style={{
+          display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", cursor: "pointer",
+          padding: "9px 12px", borderRadius: 12, border: "none", background: "transparent", color: c.rose, fontWeight: 600, fontSize: 13,
+        }}>
+          <LogOut size={16} /> {tr("Sign out")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Table manager (bulk + zones) — shared by setup & settings          */
 /* ------------------------------------------------------------------ */
@@ -1286,6 +1401,7 @@ function SetupWizard({ c, isDark, setIsDark, lang, setLang, onComplete, onCancel
 /* ------------------------------------------------------------------ */
 
 function DashboardScreen({ c, user, reservations, shifts, setView, openNewReservation, canCreate, now }) {
+  const bp = useBreakpoint();
   const todayIso = localDateIso();
   const todays = reservations.filter((r) => r.date === todayIso);
   const covers = todays.reduce((a, r) => a + (Number(r.guests) || 0), 0);
@@ -1315,7 +1431,7 @@ function DashboardScreen({ c, user, reservations, shifts, setView, openNewReserv
       </div>
       <div style={{ fontFamily: fontStack().display, fontSize: 28, fontWeight: 600, color: c.text, margin: "2px 0 20px" }}>{tr("Dashboard")}</div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: bp === "desktop" ? "repeat(4, 1fr)" : "1fr 1fr", gap: 14, marginBottom: 18 }}>
         <StatCard c={c} label={tr("TODAY'S RESERVATIONS")} value={todays.length} icon={CalendarDays} accent={c.blue} footer={tr("bookings today")} />
         <StatCard c={c} label={tr("TODAY'S GUESTS")} value={covers} icon={Users} accent={c.rose} footer={tr("expected covers")} />
         <StatCard c={c} label={tr("ACTIVE SHIFTS")} value={activeShifts} icon={Clock} accent={c.amber} footer={tr("staff on duty")} />
@@ -1516,6 +1632,7 @@ function ReservationsScreen({ c, reservations, setReservations, user, openNewRes
 /* ------------------------------------------------------------------ */
 
 function ReservationWizard({ c, onClose, onCreate, onUpdate, onDelete, reservations, tables, editing }) {
+  const bp = useBreakpoint();
   const [step, setStep] = useState(0);
   const steps = ["Guest", "Date", "Table", "Review"];
   const [form, setForm] = useState(() => editing ? {
@@ -1601,7 +1718,7 @@ function ReservationWizard({ c, onClose, onCreate, onUpdate, onDelete, reservati
               Object.entries(grouped).map(([zoneName, list]) => (
                 <div key={zoneName} style={{ marginBottom: 14 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: c.textFaint, letterSpacing: "0.05em", marginBottom: 8 }}>{(zoneName === "No zone" ? tr("No zone") : zoneName).toUpperCase()}</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: bp === "desktop" ? "repeat(3, 1fr)" : "1fr 1fr", gap: 10 }}>
                     {list.map((t) => {
                       const conflict = conflictFor(t);
                       const active = form.table === t.name;
@@ -1771,6 +1888,7 @@ function ShiftsScreen({ c, shifts, setShifts, staff, user }) {
 /* ------------------------------------------------------------------ */
 
 function ChatScreen({ c, chat, setChat, staff, user, notify }) {
+  const bp = useBreakpoint();
   const [channel, setChannel] = useState("general");
   const [text, setText] = useState("");
   const channels = [
@@ -1791,7 +1909,7 @@ function ChatScreen({ c, chat, setChat, staff, user, notify }) {
   };
 
   return (
-    <div style={{ padding: "0 20px 0", display: "flex", flexDirection: "column", minHeight: 0, height: "calc(100dvh - 210px)" }}>
+    <div style={{ padding: "0 20px 0", display: "flex", flexDirection: "column", minHeight: 0, height: bp === "desktop" ? "calc(100dvh - 150px)" : "calc(100dvh - 210px)" }}>
       <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 14px" }}>{tr("Chat")}</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         {channels.map((ch) => {
@@ -1859,6 +1977,7 @@ function ChatScreen({ c, chat, setChat, staff, user, notify }) {
 /* ------------------------------------------------------------------ */
 
 function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
+  const bp = useBreakpoint();
   const isOwner = user.role === "owner";
   const totalRes = reservations.length;
   const totalGuests = reservations.reduce((a, r) => a + (Number(r.guests) || 0), 0);
@@ -1926,7 +2045,7 @@ function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
   return (
     <div style={{ padding: "0 20px 24px" }}>
       <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 18px" }}>{tr("Analytics")}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: bp === "desktop" ? "repeat(4, 1fr)" : "1fr 1fr", gap: 14, marginBottom: 18 }}>
         <StatCard c={c} label={tr("TOTAL RESERVATIONS")} value={totalRes} icon={Check} accent={c.blue} />
         <StatCard c={c} label={tr("TOTAL GUESTS")} value={totalGuests} icon={Users} accent={c.rose} />
         <StatCard c={c} label={tr("OCCUPANCY RATE")} value={occ + "%"} icon={BarChart3} accent={c.blue} />
@@ -1966,7 +2085,7 @@ function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
 
       <SectionCard c={c}>
         <div style={{ fontWeight: 700, color: c.text, marginBottom: 14 }}>{tr("Booking Status Breakdown")}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: bp === "desktop" ? "repeat(4, 1fr)" : "1fr 1fr", gap: 12 }}>
           {[["Confirmed", confirmed, c.green], ["Completed", completed, c.blue], ["Cancelled", cancelled, c.rose], ["No-shows", noshow, c.amber]].map(([label, val, color]) => (
             <div key={label} style={{ background: c.surfaceAlt, borderRadius: 14, padding: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: c.textSub, marginBottom: 8 }}>
@@ -3242,6 +3361,7 @@ export default function App() {
   // rendered synchronously below (and any handler that fires afterwards) reads it.
   LANG = lang;
   const c = PALETTE[isDark ? "dark" : "light"];
+  const bp = useBreakpoint();
 
   const notify = (type, text) => {
     // Cap history so the blob (and every write/load of it) can't grow unbounded.
@@ -3427,6 +3547,28 @@ export default function App() {
     more: "More", shifts: "Shifts", staff: "Team", settings: "Settings", orders: "Order supplies", followups: "Follow-ups",
   };
 
+  const isDesktop = bp === "desktop";
+  // On desktop the sidebar surfaces every destination, so the "More" bucket
+  // screen is redundant — fall back to the dashboard if it's ever selected.
+  const activeView = isDesktop && view === "more" ? "dashboard" : view;
+  // Content column widths per breakpoint (desktop uses a sidebar + wider main).
+  const contentMax = isDesktop ? 960 : bp === "tablet" ? 760 : 520;
+
+  const screens = (
+    <div style={{ flex: 1 }}>
+      {activeView === "dashboard" && <DashboardScreen c={c} user={user} reservations={reservations} shifts={shifts} setView={setView} openNewReservation={() => setResModal("new")} canCreate={canCreateReservation} now={now} />}
+      {activeView === "reservations" && <ReservationsScreen c={c} reservations={reservations} setReservations={setReservations} user={user} openNewReservation={() => setResModal("new")} openEditReservation={(r) => setResModal(r)} canCreate={canCreateReservation} now={now} />}
+      {activeView === "shifts" && <ShiftsScreen c={c} shifts={shifts} setShifts={setShifts} staff={accounts} user={user} />}
+      {activeView === "chat" && <ChatScreen c={c} chat={chat} setChat={setChat} staff={accounts} user={user} notify={notify} />}
+      {activeView === "analytics" && <AnalyticsScreen c={c} reservations={reservations} shifts={shifts} staff={accounts} user={user} />}
+      {activeView === "staff" && <StaffScreen c={c} staff={accounts} setStaff={setAccounts} user={user} restaurant={restaurant} onPasswordChanged={onAccountPasswordChanged} />}
+      {activeView === "more" && <MoreScreen c={c} user={user} restaurant={restaurant} setView={setView} isDark={isDark} setIsDark={setIsDark} onSignOut={signOut} onSwitchWorkspace={switchWorkspace} />}
+      {activeView === "settings" && <SettingsScreen c={c} user={user} isDark={isDark} setIsDark={setIsDark} lang={lang} setLang={setLang} restaurant={restaurant} setRestaurant={updateRestaurant} tables={tables} setTables={setTables} accounts={accounts} setAccounts={setAccounts} onPasswordChanged={onAccountPasswordChanged} />}
+      {activeView === "orders" && <OrderingScreen c={c} products={products} setProducts={setProducts} orderDraft={orderDraft} setOrderDraft={setOrderDraft} restaurant={restaurant} />}
+      {activeView === "followups" && (user.role === "owner" || user.role === "waiter") && <FollowUpsScreen c={c} reservations={reservations} setReservations={setReservations} restaurant={restaurant} setView={setView} />}
+    </div>
+  );
+
   return (
     <div style={{ minHeight: "100dvh", background: c.bg, fontFamily: fontStack().body, display: "flex", flexDirection: "column" }}>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -3447,23 +3589,26 @@ export default function App() {
         input[type="time"]::-webkit-datetime-edit { text-align: left; }
       `}</style>
 
-      <div style={{ maxWidth: 520, margin: "0 auto", width: "100%", flex: 1, display: "flex", flexDirection: "column" }}>
-        <TopBar c={c} title={tr(titleMap[view])} isDark={isDark} setIsDark={setIsDark}
-          notifications={notifications} notifOpen={notifOpen} unreadCount={unreadCount} onOpenNotifications={toggleNotifications} />
-        <div style={{ flex: 1 }}>
-          {view === "dashboard" && <DashboardScreen c={c} user={user} reservations={reservations} shifts={shifts} setView={setView} openNewReservation={() => setResModal("new")} canCreate={canCreateReservation} now={now} />}
-          {view === "reservations" && <ReservationsScreen c={c} reservations={reservations} setReservations={setReservations} user={user} openNewReservation={() => setResModal("new")} openEditReservation={(r) => setResModal(r)} canCreate={canCreateReservation} now={now} />}
-          {view === "shifts" && <ShiftsScreen c={c} shifts={shifts} setShifts={setShifts} staff={accounts} user={user} />}
-          {view === "chat" && <ChatScreen c={c} chat={chat} setChat={setChat} staff={accounts} user={user} notify={notify} />}
-          {view === "analytics" && <AnalyticsScreen c={c} reservations={reservations} shifts={shifts} staff={accounts} user={user} />}
-          {view === "staff" && <StaffScreen c={c} staff={accounts} setStaff={setAccounts} user={user} restaurant={restaurant} onPasswordChanged={onAccountPasswordChanged} />}
-          {view === "more" && <MoreScreen c={c} user={user} restaurant={restaurant} setView={setView} isDark={isDark} setIsDark={setIsDark} onSignOut={signOut} onSwitchWorkspace={switchWorkspace} />}
-          {view === "settings" && <SettingsScreen c={c} user={user} isDark={isDark} setIsDark={setIsDark} lang={lang} setLang={setLang} restaurant={restaurant} setRestaurant={updateRestaurant} tables={tables} setTables={setTables} accounts={accounts} setAccounts={setAccounts} onPasswordChanged={onAccountPasswordChanged} />}
-          {view === "orders" && <OrderingScreen c={c} products={products} setProducts={setProducts} orderDraft={orderDraft} setOrderDraft={setOrderDraft} restaurant={restaurant} />}
-          {view === "followups" && (user.role === "owner" || user.role === "waiter") && <FollowUpsScreen c={c} reservations={reservations} setReservations={setReservations} restaurant={restaurant} setView={setView} />}
+      {isDesktop ? (
+        <div style={{ display: "flex", alignItems: "stretch", width: "100%", flex: 1 }}>
+          <SideNav view={activeView} setView={setView} c={c} user={user} restaurant={restaurant}
+            isDark={isDark} setIsDark={setIsDark} onSignOut={signOut} onSwitchWorkspace={switchWorkspace} />
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+            <TopBar c={c} title={tr(titleMap[activeView])} isDark={isDark} setIsDark={setIsDark}
+              notifications={notifications} notifOpen={notifOpen} unreadCount={unreadCount} onOpenNotifications={toggleNotifications} />
+            <div style={{ flex: 1, width: "100%", maxWidth: contentMax, margin: "0 auto" }}>
+              {screens}
+            </div>
+          </div>
         </div>
-        <BottomNav view={view} setView={setView} c={c} />
-      </div>
+      ) : (
+        <div style={{ maxWidth: contentMax, margin: "0 auto", width: "100%", flex: 1, display: "flex", flexDirection: "column" }}>
+          <TopBar c={c} title={tr(titleMap[view])} isDark={isDark} setIsDark={setIsDark}
+            notifications={notifications} notifOpen={notifOpen} unreadCount={unreadCount} onOpenNotifications={toggleNotifications} />
+          {screens}
+          <BottomNav view={view} setView={setView} c={c} />
+        </div>
+      )}
 
       {resModal && (
         <ReservationWizard c={c} reservations={reservations} tables={tables} onClose={() => setResModal(null)}
