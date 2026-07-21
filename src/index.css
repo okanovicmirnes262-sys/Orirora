@@ -19,7 +19,9 @@ html {
 
 body {
   margin: 0;
-  overflow-x: hidden;
+  /* NOTE: never put `overflow-x: hidden` on html/body — on iOS Safari it turns
+     the page into a broken scroll root that only scrolls with two fingers. The
+     layout has no horizontal overflow, so nothing is needed here. */
   overscroll-behavior-y: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

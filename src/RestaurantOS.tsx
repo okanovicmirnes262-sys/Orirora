@@ -3575,7 +3575,9 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:wght@500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap');
         * { font-family: 'Inter', -apple-system, sans-serif; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        html, body { overflow-x: hidden; }
+        /* Do NOT add `overflow-x: hidden` to html/body — on iOS Safari it breaks
+           one-finger page scrolling (requires two fingers). The layout has no
+           horizontal overflow, so it isn't needed. */
         /* Touch devices scroll by finger, so the bar is hidden there. Devices
            with a real pointer (a computer mouse/trackpad) get a visible,
            grabbable scrollbar — otherwise the page looks unscrollable. */
