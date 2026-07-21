@@ -1909,7 +1909,7 @@ function ChatScreen({ c, chat, setChat, staff, user, notify }) {
   };
 
   return (
-    <div style={{ padding: "0 20px 0", display: "flex", flexDirection: "column", minHeight: 0, height: bp === "desktop" ? "calc(100dvh - 150px)" : "calc(100dvh - 210px)" }}>
+    <div style={{ padding: "0 20px 0", display: "flex", flexDirection: "column", minHeight: 0, height: bp === "desktop" ? "calc(100dvh - 80px)" : "calc(100dvh - 210px)" }}>
       <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 14px" }}>{tr("Chat")}</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         {channels.map((ch) => {
@@ -3602,14 +3602,20 @@ export default function App() {
       `}</style>
 
       {isDesktop ? (
-        <div style={{ display: "flex", alignItems: "stretch", width: "100%", flex: 1 }}>
+        // Desktop app shell: lock the viewport (height 100dvh, no page scroll)
+        // and let the CONTENT AREA scroll on its own. That way the mouse wheel
+        // scrolls the content wherever the cursor is — not only over the
+        // scrollbar — while the sidebar and top bar stay put.
+        <div style={{ display: "flex", alignItems: "stretch", width: "100%", height: "100dvh", overflow: "hidden" }}>
           <SideNav view={activeView} setView={setView} c={c} user={user} restaurant={restaurant}
             isDark={isDark} setIsDark={setIsDark} onSignOut={signOut} onSwitchWorkspace={switchWorkspace} />
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+          <div style={{ flex: 1, minWidth: 0, height: "100dvh", display: "flex", flexDirection: "column" }}>
             <TopBar c={c} title={tr(titleMap[activeView])} isDark={isDark} setIsDark={setIsDark}
               notifications={notifications} notifOpen={notifOpen} unreadCount={unreadCount} onOpenNotifications={toggleNotifications} />
-            <div style={{ flex: 1, width: "100%", maxWidth: contentMax, margin: "0 auto" }}>
-              {screens}
+            <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+              <div style={{ width: "100%", maxWidth: contentMax, margin: "0 auto" }}>
+                {screens}
+              </div>
             </div>
           </div>
         </div>
