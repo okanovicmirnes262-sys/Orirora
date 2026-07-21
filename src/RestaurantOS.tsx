@@ -15,6 +15,366 @@ import {
 import { supabase, isSupabaseConfigured, KV_TABLE } from "./supabaseClient";
 
 /* ------------------------------------------------------------------ */
+/*  i18n — Hrvatski / English                                          */
+/* ------------------------------------------------------------------ */
+/* `tr("English text")` returns the Croatian translation when the language is
+   set to "hr", otherwise the English source. Missing keys fall back to English,
+   so the UI is never broken — only untranslated. App sets LANG each render.
+   Named `tr` (not `t`) because `t` is used throughout as a loop variable for
+   tables and time, which would shadow the translator inside those callbacks. */
+let LANG = "hr";
+
+const HR = {
+  // — Auth / login / recovery —
+  "Sign in to your restaurant.": "Prijavite se u svoj restoran.",
+  "Reset your password.": "Ponovno postavite lozinku.",
+  "Restaurant name": "Naziv restorana",
+  "Your exact restaurant name": "Točan naziv vašeg restorana",
+  "Password": "Lozinka",
+  "Remember me on this device": "Zapamti me na ovom uređaju",
+  "Sign in": "Prijava",
+  "Signing in…": "Prijavljivanje…",
+  "Forgot password?": "Zaboravljena lozinka?",
+  "New team member? Ask your restaurant owner for your login — they'll share your password with you.": "Novi ste član tima? Zatražite od vlasnika svoje podatke za prijavu — podijelit će vam lozinku.",
+  "or": "ili",
+  "Set up a new restaurant": "Postavi novi restoran",
+  "Enter your restaurant name and the recovery code you saved when you set up the restaurant, then choose a new owner password.": "Unesite naziv restorana i kod za oporavak koji ste spremili pri postavljanju, zatim odaberite novu lozinku vlasnika.",
+  "Recovery code": "Kod za oporavak",
+  "New password": "Nova lozinka",
+  "At least 6 characters": "Najmanje 6 znakova",
+  "Confirm new password": "Potvrdite novu lozinku",
+  "Repeat password": "Ponovite lozinku",
+  "Reset password": "Ponovno postavi lozinku",
+  "Resetting…": "Postavljanje…",
+  "Back to sign in": "Natrag na prijavu",
+  "Incorrect restaurant name or password.": "Netočan naziv restorana ili lozinka.",
+  "Enter your restaurant name and password.": "Unesite naziv restorana i lozinku.",
+  "Password updated — you can sign in now.": "Lozinka je ažurirana — sada se možete prijaviti.",
+  "Enter your restaurant name and recovery code.": "Unesite naziv restorana i kod za oporavak.",
+  "New password must be at least 6 characters.": "Nova lozinka mora imati najmanje 6 znakova.",
+  "New passwords don't match.": "Nove lozinke se ne podudaraju.",
+  "Couldn't reset the password.": "Nije moguće ponovno postaviti lozinku.",
+  "No restaurant found with that name.": "Nije pronađen restoran s tim nazivom.",
+  "This restaurant has no recovery code set.": "Ovaj restoran nema postavljen kod za oporavak.",
+  "Incorrect recovery code.": "Netočan kod za oporavak.",
+  "No owner account found.": "Nije pronađen vlasnički račun.",
+  "New reservation:": "Nova rezervacija:",
+  "That password is already in use by a staff account. Choose a different one.": "Ta lozinka se već koristi za račun osoblja. Odaberite drugu.",
+
+  // — Setup wizard —
+  "Let's set up your restaurant.": "Postavimo vaš restoran.",
+  "Restaurant": "Restoran",
+  "Your account": "Vaš račun",
+  "Tables": "Stolovi",
+  "All restaurants": "Svi restorani",
+  "Your restaurant": "Vaš restoran",
+  "Enter your restaurant's name": "Unesite naziv restorana",
+  "e.g. Rosemary & Rye": "npr. Ružmarin & Raž",
+  "This appears on staff logins and reports.": "Prikazuje se pri prijavi osoblja i u izvještajima.",
+  "Create your owner account": "Izradite vlasnički račun",
+  "Full name": "Ime i prezime",
+  "Your name": "Vaše ime",
+  "Enter your name": "Unesite svoje ime",
+  "Email": "E-mail",
+  "you@email.com": "vi@email.com",
+  "Enter a valid email": "Unesite ispravan e-mail",
+  "Confirm password": "Potvrdite lozinku",
+  "Passwords don't match": "Lozinke se ne podudaraju",
+  "Add your tables": "Dodajte stolove",
+  "Optional — add them all at once, group by section, or skip and do this later in Settings.": "Neobavezno — dodajte ih sve odjednom, grupirajte po sekcijama ili preskočite i učinite to kasnije u Postavkama.",
+  "Back": "Natrag",
+  "Next": "Dalje",
+  "Finish setup": "Završi postavljanje",
+  "Setting up…": "Postavljanje…",
+  "Save your recovery code": "Spremite kod za oporavak",
+  "If you ever forget your password, this code lets you reset it on the sign-in screen. Store it somewhere safe — you can view it again anytime in Settings.": "Ako ikad zaboravite lozinku, ovim kodom je možete ponovno postaviti na ekranu za prijavu. Spremite ga na sigurno — uvijek ga možete ponovno vidjeti u Postavkama.",
+  "Copy code": "Kopiraj kod",
+  "Copied": "Kopirano",
+  "I've saved it": "Spremio sam",
+
+  // — Config screen —
+  "Connect your Supabase backend to get started.": "Povežite Supabase pozadinu za početak.",
+  "Set up in 5 steps": "Postavljanje u 5 koraka",
+  "Full instructions are in the project README. Use only the public anon key here — never the service_role key.": "Potpune upute su u README datoteci projekta. Ovdje koristite samo javni anon ključ — nikada service_role ključ.",
+  "Couldn't load this restaurant's data. Check your connection and try again.": "Nije moguće učitati podatke restorana. Provjerite vezu i pokušajte ponovno.",
+  "Retry": "Pokušaj ponovno",
+  "Sign out": "Odjava",
+
+  // — Nav / top —
+  "Home": "Početna",
+  "Bookings": "Rezervacije",
+  "Chat": "Chat",
+  "Analytics": "Analitika",
+  "More": "Više",
+  "Notifications": "Obavijesti",
+  "You're all caught up.": "Sve je pregledano.",
+
+  // — Dashboard —
+  "Good day,": "Dobar dan,",
+  "Live": "Uživo",
+  "Dashboard": "Nadzorna ploča",
+  "TODAY'S RESERVATIONS": "DANAŠNJE REZERVACIJE",
+  "TODAY'S GUESTS": "DANAŠNJI GOSTI",
+  "ACTIVE SHIFTS": "AKTIVNE SMJENE",
+  "PENDING": "NA ČEKANJU",
+  "bookings today": "rezervacija danas",
+  "expected covers": "očekivanih gostiju",
+  "staff on duty": "osoblja na dužnosti",
+  "awaiting confirmation": "čeka potvrdu",
+  "Upcoming Reservations": "Nadolazeće rezervacije",
+  "View all": "Prikaži sve",
+  "Nothing booked yet": "Još nema rezervacija",
+  "Reservations you take today will show up here.": "Rezervacije koje danas zaprimite prikazat će se ovdje.",
+  "New reservation": "Nova rezervacija",
+  "Quick Actions": "Brze radnje",
+  "New Reservation": "Nova rezervacija",
+  "Book a table for a guest": "Rezerviraj stol za gosta",
+  "View All Reservations": "Prikaži sve rezervacije",
+  "Check today's bookings": "Pregledaj današnje rezervacije",
+  "Staff Shifts": "Smjene osoblja",
+  "View weekly schedule": "Prikaži tjedni raspored",
+  "Team Chat": "Timski chat",
+  "Message your team": "Poruka timu",
+
+  // — Reservations —
+  "Reservations": "Rezervacije",
+  "All upcoming table bookings.": "Sve nadolazeće rezervacije stolova.",
+  "Search by guest or table": "Pretraži po gostu ili stolu",
+  "Viewing only — ask the front of house to add or edit bookings.": "Samo pregled — zatražite od sale dodavanje ili uređivanje rezervacija.",
+  "No reservations yet": "Još nema rezervacija",
+  "Bookings you create will appear here, grouped by date.": "Rezervacije koje izradite prikazat će se ovdje, grupirane po datumu.",
+  "Once the team starts booking tables, they'll show up here.": "Kad tim počne rezervirati stolove, prikazat će se ovdje.",
+  "No past reservations": "Nema prošlih rezervacija",
+  "Finished bookings will appear here once their time has passed.": "Završene rezervacije prikazat će se ovdje kad im prođe vrijeme.",
+  "Nothing coming up": "Nema nadolazećih",
+  "No active reservations right now. Finished ones move to the Past tab automatically.": "Trenutno nema aktivnih rezervacija. Završene se automatski premještaju u karticu Prošle.",
+  "No matches": "Nema rezultata",
+  "Try a different name, table, or status filter.": "Pokušajte s drugim imenom, stolom ili filtrom statusa.",
+
+  // — Reservation wizard —
+  "Edit Reservation": "Uredi rezervaciju",
+  "Update this table booking.": "Ažurirajte ovu rezervaciju stola.",
+  "Create a new table booking.": "Izradite novu rezervaciju stola.",
+  "Guest": "Gost",
+  "Date": "Datum",
+  "Table": "Stol",
+  "Review": "Pregled",
+  "Guest Name": "Ime gosta",
+  "Phone": "Telefon",
+  "Email (optional)": "E-mail (neobavezno)",
+  "guest@email.com": "gost@email.com",
+  "Time": "Vrijeme",
+  "Guests": "Gosti",
+  "Duration (minutes)": "Trajanje (minute)",
+  "No tables set up": "Nema postavljenih stolova",
+  "Ask the owner to add tables under More → Settings before booking.": "Zatražite od vlasnika da doda stolove u Više → Postavke prije rezerviranja.",
+  "Save changes": "Spremi promjene",
+  "Confirm booking": "Potvrdi rezervaciju",
+  "Delete reservation": "Obriši rezervaciju",
+  "Delete this reservation?": "Obrisati ovu rezervaciju?",
+  "Delete": "Obriši",
+  "Cancel": "Odustani",
+  "at": "u",
+  "Booked at": "Zauzeto u",
+
+  // — Shifts —
+  "Shifts": "Smjene",
+  "Weekly schedule and staff assignments.": "Tjedni raspored i raspored osoblja.",
+  "No team members yet": "Još nema članova tima",
+  "Add staff under More → Team before scheduling shifts.": "Dodajte osoblje u Više → Tim prije rasporeda smjena.",
+  "Once staff are added, shifts will show up here.": "Kad se doda osoblje, smjene će se prikazati ovdje.",
+  "No shifts": "Nema smjena",
+  "Add shift": "Dodaj smjenu",
+  "Staff member": "Član osoblja",
+  "Start": "Početak",
+  "End": "Kraj",
+
+  // — Chat —
+  "General": "Općenito",
+  "Floor": "Sala",
+  "Kitchen": "Kuhinja",
+  "No messages yet": "Još nema poruka",
+  "Start the conversation with your team.": "Započnite razgovor sa svojim timom.",
+  "Nothing posted here yet.": "Ovdje još nema poruka.",
+  "Only the owner can send messages here": "Ovdje samo vlasnik može slati poruke",
+  "You": "Vi",
+  "Unknown": "Nepoznato",
+  "posted in": "objavio/la u",
+
+  // — Analytics —
+  "My Analytics": "Moja analitika",
+  "MY SHIFTS": "MOJE SMJENE",
+  "HOURS SCHEDULED": "ZAKAZANI SATI",
+  "This week": "Ovaj tjedan",
+  "No shifts scheduled": "Nema zakazanih smjena",
+  "Check back once the owner publishes the schedule.": "Provjerite kad vlasnik objavi raspored.",
+  "No data yet": "Još nema podataka",
+  "Once reservations start coming in, trends and charts will appear here.": "Kad počnu stizati rezervacije, trendovi i grafovi prikazat će se ovdje.",
+  "TOTAL RESERVATIONS": "UKUPNO REZERVACIJA",
+  "TOTAL GUESTS": "UKUPNO GOSTIJU",
+  "OCCUPANCY RATE": "POPUNJENOST",
+  "NO-SHOWS": "NEDOLASCI",
+  "Reservations Over Time": "Rezervacije kroz vrijeme",
+  "Peak Hours": "Najprometniji sati",
+  "Booking Status Breakdown": "Pregled statusa rezervacija",
+  "Confirmed": "Potvrđeno",
+  "Completed": "Završeno",
+  "Cancelled": "Otkazano",
+  "No-shows": "Nedolasci",
+
+  // — Team —
+  "Team": "Tim",
+  "Build your team": "Izgradite svoj tim",
+  "Add waiters and chefs — we'll generate their login for you.": "Dodajte konobare i kuhare — generirat ćemo im podatke za prijavu.",
+  "The owner hasn't added any staff yet.": "Vlasnik još nije dodao osoblje.",
+  "Add team member": "Dodaj člana tima",
+  "We'll generate their email and password automatically.": "Automatski ćemo generirati e-mail i lozinku.",
+  "e.g. Jane Waiter": "npr. Ana Konobar",
+  "Phone (optional)": "Telefon (neobavezno)",
+  "Role": "Uloga",
+  "Create account": "Izradi račun",
+  "added": "je dodan/a",
+  "ORDIORA login for": "ORDIORA prijava za",
+  "Share these login details with them — they sign in with the restaurant name and this password. You can view the password again anytime from the Team list.": "Podijelite ove podatke za prijavu s njima — prijavljuju se nazivom restorana i ovom lozinkom. Lozinku možete ponovno vidjeti u popisu Tim.",
+  "RESTAURANT": "RESTORAN",
+  "PASSWORD": "LOZINKA",
+  "Copy details": "Kopiraj podatke",
+  "Done": "Gotovo",
+  "Change": "Promijeni",
+  "Change password · ": "Promjena lozinke · ",
+  "Set a new password and share it with them. It replaces their old one immediately.": "Postavite novu lozinku i podijelite je s njima. Odmah zamjenjuje staru.",
+  "They sign in with the restaurant name and this password.": "Prijavljuju se nazivom restorana i ovom lozinkom.",
+  "Generate a new one": "Generiraj novu",
+  "Save password": "Spremi lozinku",
+  "That password is already in use by another account.": "Ta lozinka se već koristi za drugi račun.",
+  "At least 6 characters.": "Najmanje 6 znakova.",
+  "Remove": "Ukloni",
+  "They'll lose access immediately. This can't be undone.": "Odmah gube pristup. Ovo se ne može poništiti.",
+  "(you)": "(vi)",
+
+  // — More —
+  "Order supplies": "Naruči robu",
+  "Follow-ups": "Zamolbe",
+  "Settings": "Postavke",
+  "Dark mode": "Tamni način",
+  "Light mode": "Svijetli način",
+  "Switch restaurant": "Promijeni restoran",
+
+  // — Settings —
+  "Appearance": "Izgled",
+  "Light": "Svijetlo",
+  "Dark": "Tamno",
+  "Language": "Jezik",
+  "Update your restaurant's name.": "Ažurirajte naziv restorana.",
+  "Save": "Spremi",
+  "Google reviews": "Google recenzije",
+  "Set the link guests use to leave a review — used by Follow-ups.": "Postavite poveznicu putem koje gosti ostavljaju recenziju — koristi je modul Zamolbe.",
+  "Paste the review link from your Google Business Profile.": "Zalijepite poveznicu za recenziju s vašeg Google Business profila.",
+  "Enter a full link starting with https://": "Unesite potpunu poveznicu koja počinje s https://",
+  "Manage the tables staff can assign reservations to, grouped by section.": "Upravljajte stolovima na koje osoblje raspoređuje rezervacije, grupirano po sekcijama.",
+  "If you ever forget your password, use this code on the sign-in screen (\"Forgot password?\") to set a new one. Keep it somewhere safe — anyone with it can reset the owner password.": "Ako ikad zaboravite lozinku, ovim kodom na ekranu za prijavu (\"Zaboravljena lozinka?\") postavljate novu. Čuvajte ga na sigurnom — tko god ga ima može ponovno postaviti lozinku vlasnika.",
+  "Copy": "Kopiraj",
+  "Regenerate": "Generiraj ponovno",
+  "Generate recovery code": "Generiraj kod za oporavak",
+  "Change password": "Promjena lozinke",
+  "Update the password you use to sign in.": "Ažurirajte lozinku kojom se prijavljujete.",
+  "Current password": "Trenutna lozinka",
+  "Current password is incorrect.": "Trenutna lozinka je netočna.",
+  "That password is already in use by another account. Choose a different one.": "Ta lozinka se već koristi za drugi račun. Odaberite drugu.",
+  "Password updated.": "Lozinka je ažurirana.",
+  "Update password": "Ažuriraj lozinku",
+  "Account": "Račun",
+  "Signed in as": "Prijavljeni kao",
+
+  // — Tables manager —
+  "No tables added yet.": "Još nema dodanih stolova.",
+  "Seats": "Mjesta",
+  "Fewer seats": "Manje mjesta",
+  "More seats": "Više mjesta",
+  "Add tables in bulk": "Dodaj stolove skupno",
+  "Zone (optional, e.g. Patio)": "Zona (neobavezno, npr. Terasa)",
+  "How many": "Koliko",
+  "Seats each": "Mjesta po stolu",
+  "No zone": "Bez zone",
+  "Add": "Dodaj",
+
+  // — Ordering —
+  "Build a supplier order and export it as a table.": "Sastavite narudžbu za dobavljača i izvezite je kao tablicu.",
+  "Import": "Uvezi",
+  "Export CSV": "Izvezi CSV",
+  "Select items to delete": "Odaberi stavke za brisanje",
+  "selected": "odabrano",
+  "All": "Sve",
+  "None": "Ništa",
+  "Add an item (e.g. Coca-Cola)": "Dodaj stavku (npr. Coca-Cola)",
+  "No items yet": "Još nema stavki",
+  "Import your goods from a menu photo or PDF, or add them one by one above.": "Uvezite robu iz fotografije menija ili PDF-a, ili je dodajte jednu po jednu iznad.",
+  "Import from photo / PDF": "Uvezi iz fotografije / PDF-a",
+  "in order": "u narudžbi",
+  "Clear": "Očisti",
+  "Remove all items?": "Ukloniti sve stavke?",
+  "The selected items will be removed from your catalog and any current order.": "Odabrane stavke uklonit će se iz kataloga i trenutne narudžbe.",
+  "This item will be removed from your catalog and any current order.": "Ova stavka uklonit će se iz kataloga i trenutne narudžbe.",
+
+  // — Import modal —
+  "Import items": "Uvoz stavki",
+  "Snap a photo of the menu or pick a PDF — we'll read the text. Then review the list before adding.": "Uslikajte meni ili odaberite PDF — pročitat ćemo tekst. Zatim pregledajte popis prije dodavanja.",
+  "Photo": "Fotografija",
+  "PDF": "PDF",
+  "Reading…": "Čitanje…",
+  "Reading PDF…": "Čitam PDF…",
+  "Reading image…": "Čitam sliku…",
+  "No text found — type items manually below.": "Nije pronađen tekst — upiši artikle ručno ispod.",
+  "Automatic reading failed — paste or type items manually below.": "Automatsko čitanje nije uspjelo — zalijepi ili upiši artikle ručno ispod.",
+  "Items — one per line": "Stavke — jedna po retku",
+  "Clean up": "Očisti",
+  "Tip: paste a menu and tap \"Clean up\" to drop prices, headers and descriptions, and shorten dish names (e.g. \"Hobotnica na žaru\" → \"Hobotnica\").": "Savjet: zalijepite meni i dodirnite \"Očisti\" da uklonite cijene, naslove i opise te skratite nazive jela (npr. \"Hobotnica na žaru\" → \"Hobotnica\").",
+  "Default unit": "Zadana jedinica",
+
+  // — Follow-ups —
+  "Invite guests to leave a Google review after their visit.": "Pozovite goste da nakon posjeta ostave Google recenziju.",
+  "Add your Google review link so guests can leave a review.": "Dodajte poveznicu za Google recenziju kako bi gosti mogli ostaviti recenziju.",
+  "No follow-ups yet": "Još nema zamolbi",
+  "Guests appear here once their reservation is marked completed, so you can invite them to leave a review.": "Gosti se prikazuju ovdje kad im se rezervacija označi kao završena, pa ih možete pozvati da ostave recenziju.",
+  "Review request · ": "Zamolba za recenziju · ",
+  "Subject": "Predmet",
+  "Message": "Poruka",
+  "Open in mail": "Otvori u mailu",
+  "Mark as sent": "Označi kao poslano",
+
+  // — Statuses —
+  "all": "sve",
+  "past": "prošle",
+  "pending": "na čekanju",
+  "confirmed": "potvrđeno",
+  "seated": "sjedi",
+  "completed": "završeno",
+  "cancelled": "otkazano",
+  "no-show": "nije došao",
+
+  // — Roles —
+  "Owner": "Vlasnik",
+  "Waiter": "Konobar",
+  "Chef": "Kuhar",
+  "Staff": "Osoblje",
+};
+
+function tr(s) {
+  if (LANG !== "hr") return s;
+  return Object.prototype.hasOwnProperty.call(HR, s) ? HR[s] : s;
+}
+
+/* Count-aware noun. en=[singular,plural]; hr=[1, 2–4, 5+]. */
+function plural(n, en, hr) {
+  const a = Math.abs(n) % 100, d = a % 10;
+  if (LANG !== "hr") return Math.abs(n) === 1 ? en[0] : en[1];
+  if (a > 10 && a < 20) return hr[2];
+  if (d === 1) return hr[0];
+  if (d >= 2 && d <= 4) return hr[1];
+  return hr[2];
+}
+
+/* ------------------------------------------------------------------ */
 /*  Design tokens                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -466,15 +826,16 @@ function EmptyState({ icon: Icon, title, message, actionLabel, onAction, c }) {
   );
 }
 
-function ConfirmDialog({ c, title, message, confirmLabel = "Delete", danger = true, onConfirm, onCancel }) {
+function ConfirmDialog({ c, title, message, confirmLabel, danger = true, onConfirm, onCancel }) {
+  const confirmText = confirmLabel || tr("Delete");
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 80, padding: 20 }} onClick={onCancel}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: c.surface, borderRadius: 22, padding: 24, width: "100%", maxWidth: 340, fontFamily: fontStack().body }}>
         <div style={{ fontWeight: 700, fontSize: 16.5, color: c.text, marginBottom: 8 }}>{title}</div>
         <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 22, lineHeight: 1.5 }}>{message}</div>
         <div style={{ display: "flex", gap: 10 }}>
-          <GhostButton c={c} full onClick={onCancel}>Cancel</GhostButton>
-          <PrimaryButton c={c} full onClick={onConfirm} style={{ background: danger ? c.rose : c.cta }}>{confirmLabel}</PrimaryButton>
+          <GhostButton c={c} full onClick={onCancel}>{tr("Cancel")}</GhostButton>
+          <PrimaryButton c={c} full onClick={onConfirm} style={{ background: danger ? c.rose : c.cta }}>{confirmText}</PrimaryButton>
         </div>
       </div>
     </div>
@@ -492,9 +853,9 @@ function NotificationsPanel({ c, notifications, onClose }) {
         position: "absolute", top: "calc(66px + env(safe-area-inset-top, 0px))", right: 20, width: "min(340px, 88vw)", maxHeight: "60dvh", overflowY: "auto",
         background: c.surface, border: `1px solid ${c.border}`, borderRadius: 18, boxShadow: c.shadow, padding: 8,
       }}>
-        <div style={{ fontWeight: 700, fontSize: 14.5, color: c.text, padding: "8px 10px" }}>Notifications</div>
+        <div style={{ fontWeight: 700, fontSize: 14.5, color: c.text, padding: "8px 10px" }}>{tr("Notifications")}</div>
         {notifications.length === 0 ? (
-          <div style={{ padding: "20px 14px", textAlign: "center", color: c.textFaint, fontSize: 13 }}>You're all caught up.</div>
+          <div style={{ padding: "20px 14px", textAlign: "center", color: c.textFaint, fontSize: 13 }}>{tr("You're all caught up.")}</div>
         ) : (
           [...notifications].sort((a, b) => b.time - a.time).map((n) => {
             const Icon = n.type === "chat" ? MessageSquare : CalendarDays;
@@ -557,7 +918,7 @@ function BottomNav({ view, setView, c }) {
             gap: 4, cursor: "pointer", color: activeSet ? c.text : c.textFaint, padding: "4px 10px",
           }}>
             <Icon size={20} strokeWidth={activeSet ? 2.4 : 2} />
-            <span style={{ fontSize: 10.5, fontWeight: activeSet ? 700 : 500 }}>{item.label}</span>
+            <span style={{ fontSize: 10.5, fontWeight: activeSet ? 700 : 500 }}>{tr(item.label)}</span>
           </button>
         );
       })}
@@ -600,21 +961,21 @@ function TableManager({ c, tables, setTables, compact }) {
 
   return (
     <div>
-      {!compact && tables.length === 0 && <div style={{ fontSize: 13, color: c.textFaint, marginBottom: 12 }}>No tables added yet.</div>}
+      {!compact && tables.length === 0 && <div style={{ fontSize: 13, color: c.textFaint, marginBottom: 12 }}>{tr("No tables added yet.")}</div>}
       {Object.entries(grouped).map(([zoneName, list]) => (
         <div key={zoneName} style={{ marginBottom: 10 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: c.textFaint, letterSpacing: "0.05em", margin: "8px 0 4px" }}>
-            {zoneName.toUpperCase()} · {list.length}
+            {(zoneName === "No zone" ? tr("No zone") : zoneName).toUpperCase()} · {list.length}
           </div>
           {list.map((t) => (
             <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderTop: `1px solid ${c.border}` }}>
               <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: 14, color: c.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</div>
-              <span style={{ fontSize: 11, color: c.textFaint, flexShrink: 0 }}>Seats</span>
+              <span style={{ fontSize: 11, color: c.textFaint, flexShrink: 0 }}>{tr("Seats")}</span>
               <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                <button onClick={() => stepCapacity(t, -1)} style={stepBtn} aria-label="Fewer seats"><Minus size={13} /></button>
+                <button onClick={() => stepCapacity(t, -1)} style={stepBtn} aria-label={tr("Fewer seats")}><Minus size={13} /></button>
                 <input value={t.capacity} onChange={(e) => setCapacityFor(t.id, e.target.value)} inputMode="numeric"
                   style={{ width: 36, textAlign: "center", padding: "5px 2px", borderRadius: 8, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
-                <button onClick={() => stepCapacity(t, 1)} style={stepBtn} aria-label="More seats"><Plus size={13} /></button>
+                <button onClick={() => stepCapacity(t, 1)} style={stepBtn} aria-label={tr("More seats")}><Plus size={13} /></button>
               </div>
               <button onClick={() => removeTable(t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textFaint, flexShrink: 0 }}><Trash2 size={14} /></button>
             </div>
@@ -623,24 +984,24 @@ function TableManager({ c, tables, setTables, compact }) {
       ))}
 
       <div style={{ background: c.surfaceAlt, borderRadius: 14, padding: 14, marginTop: 10 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: c.textSub, marginBottom: 10 }}>Add tables in bulk</div>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: c.textSub, marginBottom: 10 }}>{tr("Add tables in bulk")}</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-          <input value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Zone (optional, e.g. Patio)"
+          <input value={zone} onChange={(e) => setZone(e.target.value)} placeholder={tr("Zone (optional, e.g. Patio)")}
             style={{ flex: 1, minWidth: 0, padding: "10px 12px", borderRadius: 10, border: `1px solid ${c.border}`, background: c.surface, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, color: c.textFaint, marginBottom: 4 }}>How many</div>
+            <div style={{ fontSize: 11, color: c.textFaint, marginBottom: 4 }}>{tr("How many")}</div>
             <input type="number" min={1} inputMode="numeric" value={count} onChange={(e) => setCount(e.target.value)}
               style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${c.border}`, background: c.surface, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, color: c.textFaint, marginBottom: 4 }}>Seats each</div>
+            <div style={{ fontSize: 11, color: c.textFaint, marginBottom: 4 }}>{tr("Seats each")}</div>
             <input type="number" min={1} inputMode="numeric" value={capacity} onChange={(e) => setCapacity(e.target.value)}
               style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${c.border}`, background: c.surface, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
           </div>
           <button onClick={bulkAdd} style={{ alignSelf: "flex-end", padding: "10px 16px", borderRadius: 10, border: "none", background: c.cta, color: c.ctaText, cursor: "pointer", fontWeight: 600, fontSize: 13.5, whiteSpace: "nowrap" }}>
-            Add
+            {tr("Add")}
           </button>
         </div>
       </div>
@@ -652,10 +1013,28 @@ function TableManager({ c, tables, setTables, compact }) {
 /*  Login (exact restaurant name + password)                           */
 /* ------------------------------------------------------------------ */
 
+/* Compact HR / EN switch used on the pre-login screens (next to the theme
+   toggle) so the language can be chosen before signing in. */
+function LangToggle({ c, lang, setLang }) {
+  return (
+    <div style={{ display: "flex", border: `1px solid ${c.border}`, borderRadius: 999, overflow: "hidden", background: c.surface }}>
+      {["hr", "en"].map((k) => {
+        const active = lang === k;
+        return (
+          <button key={k} onClick={() => setLang(k)} style={{
+            border: "none", cursor: "pointer", padding: "7px 12px", fontSize: 12, fontWeight: 700,
+            background: active ? c.text : "transparent", color: active ? c.bg : c.textSub,
+          }}>{k.toUpperCase()}</button>
+        );
+      })}
+    </div>
+  );
+}
+
 /* Access requires the EXACT restaurant name plus a valid password — the app
    never lists or reveals which restaurants exist, and the password alone
    identifies which staff account is signing in. */
-function LoginScreen({ c, isDark, setIsDark, onLogin, onRecover, onCreateNew }) {
+function LoginScreen({ c, isDark, setIsDark, lang, setLang, onLogin, onRecover, onCreateNew }) {
   const [mode, setMode] = useState("signin"); // "signin" | "recover"
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -673,29 +1052,30 @@ function LoginScreen({ c, isDark, setIsDark, onLogin, onRecover, onCreateNew }) 
 
   const submit = async () => {
     setError(""); setInfo("");
-    if (!name.trim() || !password) { setError("Enter your restaurant name and password."); return; }
+    if (!name.trim() || !password) { setError(tr("Enter your restaurant name and password.")); return; }
     setLoading(true);
     const res = await onLogin(name, password, remember);
     setLoading(false);
-    if (!res || !res.ok) setError("Incorrect restaurant name or password.");
+    if (!res || !res.ok) setError(tr("Incorrect restaurant name or password."));
   };
 
   const submitRecover = async () => {
     setError("");
-    if (!name.trim() || !code.trim()) { setError("Enter your restaurant name and recovery code."); return; }
-    if (newPass.length < 6) { setError("New password must be at least 6 characters."); return; }
-    if (newPass !== confirm) { setError("New passwords don't match."); return; }
+    if (!name.trim() || !code.trim()) { setError(tr("Enter your restaurant name and recovery code.")); return; }
+    if (newPass.length < 6) { setError(tr("New password must be at least 6 characters.")); return; }
+    if (newPass !== confirm) { setError(tr("New passwords don't match.")); return; }
     setLoading(true);
     const res = await onRecover(name, code, newPass);
     setLoading(false);
-    if (!res || !res.ok) { setError(res?.error || "Couldn't reset the password."); return; }
+    if (!res || !res.ok) { setError(res?.error || tr("Couldn't reset the password.")); return; }
     setPassword(newPass); setCode(""); setNewPass(""); setConfirm("");
-    setMode("signin"); setInfo("Password updated — you can sign in now.");
+    setMode("signin"); setInfo(tr("Password updated — you can sign in now."));
   };
 
   return (
     <div style={{ minHeight: "100dvh", background: c.bg, display: "flex", flexDirection: "column", fontFamily: fontStack().body }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", padding: "calc(18px + env(safe-area-inset-top, 0px)) 20px 18px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "calc(18px + env(safe-area-inset-top, 0px)) 20px 18px" }}>
+        <LangToggle c={c} lang={lang} setLang={setLang} />
         <IconBtn c={c} onClick={() => setIsDark(!isDark)}>{isDark ? <Sun size={17} /> : <Moon size={17} />}</IconBtn>
       </div>
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 20px 40px" }}>
@@ -705,54 +1085,54 @@ function LoginScreen({ c, isDark, setIsDark, onLogin, onRecover, onCreateNew }) 
               <OrdioraLogo c={c} size={160} />
             </div>
             <div style={{ color: c.textSub, marginTop: 2, fontSize: 15 }}>
-              {mode === "signin" ? "Sign in to your restaurant." : "Reset your password."}
+              {mode === "signin" ? tr("Sign in to your restaurant.") : tr("Reset your password.")}
             </div>
           </div>
 
           {mode === "signin" ? (
             <>
-              <TextInput c={c} label="Restaurant name" value={name} onChange={setName} placeholder="Your exact restaurant name" />
-              <TextInput c={c} label="Password" value={password} onChange={setPassword} placeholder="Password" type="password" error={error} />
+              <TextInput c={c} label={tr("Restaurant name")} value={name} onChange={setName} placeholder={tr("Your exact restaurant name")} />
+              <TextInput c={c} label={tr("Password")} value={password} onChange={setPassword} placeholder={tr("Password")} type="password" error={error} />
               {info && <div style={{ fontSize: 12.5, color: c.green, marginTop: -8, marginBottom: 12 }}>{info}</div>}
 
               <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginBottom: 18 }}>
                 <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={{ width: 17, height: 17, accentColor: c.text }} />
-                <span style={{ fontSize: 13, color: c.textSub }}>Remember me on this device</span>
+                <span style={{ fontSize: 13, color: c.textSub }}>{tr("Remember me on this device")}</span>
               </label>
 
               <PrimaryButton c={c} full onClick={submit} disabled={loading} style={{ marginTop: 4 }}>
-                {loading ? <><Loader2 size={16} className="spin" /> Signing in…</> : "Sign in"}
+                {loading ? <><Loader2 size={16} className="spin" /> {tr("Signing in…")}</> : tr("Sign in")}
               </PrimaryButton>
               <button onClick={goRecover} style={{ display: "block", margin: "14px auto 0", background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600, textDecoration: "underline" }}>
-                Forgot password?
+                {tr("Forgot password?")}
               </button>
               <div style={{ textAlign: "center", fontSize: 12.5, color: c.textFaint, marginTop: 14, lineHeight: 1.6 }}>
-                New team member? Ask your restaurant owner for your<br />login — they'll share your password with you.
+                {tr("New team member? Ask your restaurant owner for your login — they'll share your password with you.")}
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "22px 0 18px" }}>
                 <div style={{ flex: 1, height: 1, background: c.border }} />
-                <span style={{ fontSize: 12, color: c.textFaint }}>or</span>
+                <span style={{ fontSize: 12, color: c.textFaint }}>{tr("or")}</span>
                 <div style={{ flex: 1, height: 1, background: c.border }} />
               </div>
               <GhostButton c={c} full onClick={onCreateNew}>
-                <Plus size={15} /> Set up a new restaurant
+                <Plus size={15} /> {tr("Set up a new restaurant")}
               </GhostButton>
             </>
           ) : (
             <>
               <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14, lineHeight: 1.6 }}>
-                Enter your restaurant name and the recovery code you saved when you set up the restaurant, then choose a new owner password.
+                {tr("Enter your restaurant name and the recovery code you saved when you set up the restaurant, then choose a new owner password.")}
               </div>
-              <TextInput c={c} label="Restaurant name" value={name} onChange={setName} placeholder="Your exact restaurant name" />
-              <TextInput c={c} label="Recovery code" value={code} onChange={setCode} placeholder="e.g. R7K2-9QMX" />
-              <TextInput c={c} label="New password" value={newPass} onChange={setNewPass} placeholder="At least 6 characters" type="password" />
-              <TextInput c={c} label="Confirm new password" value={confirm} onChange={setConfirm} placeholder="Repeat password" type="password" error={error} />
+              <TextInput c={c} label={tr("Restaurant name")} value={name} onChange={setName} placeholder={tr("Your exact restaurant name")} />
+              <TextInput c={c} label={tr("Recovery code")} value={code} onChange={setCode} placeholder="e.g. R7K2-9QMX" />
+              <TextInput c={c} label={tr("New password")} value={newPass} onChange={setNewPass} placeholder={tr("At least 6 characters")} type="password" />
+              <TextInput c={c} label={tr("Confirm new password")} value={confirm} onChange={setConfirm} placeholder={tr("Repeat password")} type="password" error={error} />
               <PrimaryButton c={c} full onClick={submitRecover} disabled={loading} style={{ marginTop: 4 }}>
-                {loading ? <><Loader2 size={16} className="spin" /> Resetting…</> : "Reset password"}
+                {loading ? <><Loader2 size={16} className="spin" /> {tr("Resetting…")}</> : tr("Reset password")}
               </PrimaryButton>
               <button onClick={goSignin} style={{ display: "block", margin: "16px auto 0", background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600, textDecoration: "underline" }}>
-                Back to sign in
+                {tr("Back to sign in")}
               </button>
             </>
           )}
@@ -767,7 +1147,7 @@ function LoginScreen({ c, isDark, setIsDark, onLogin, onRecover, onCreateNew }) 
 /*  Setup wizard (first run — create restaurant + owner account)       */
 /* ------------------------------------------------------------------ */
 
-function SetupWizard({ c, isDark, setIsDark, onComplete, onCancel }) {
+function SetupWizard({ c, isDark, setIsDark, lang, setLang, onComplete, onCancel }) {
   const [step, setStep] = useState(0);
   const steps = ["Restaurant", "Your account", "Tables"];
   const [restaurantName, setRestaurantName] = useState("");
@@ -782,11 +1162,11 @@ function SetupWizard({ c, isDark, setIsDark, onComplete, onCancel }) {
   const emailValid = /^\S+@\S+\.\S+$/.test(email);
 
   const errors = {
-    restaurantName: step > 0 && !restaurantName.trim() ? "Enter your restaurant's name" : null,
-    ownerName: step > 1 && !ownerName.trim() ? "Enter your name" : null,
-    email: step > 1 && !emailValid ? "Enter a valid email" : null,
-    password: step > 1 && password.length < 6 ? "At least 6 characters" : null,
-    confirm: step > 1 && confirm !== password ? "Passwords don't match" : null,
+    restaurantName: step > 0 && !restaurantName.trim() ? tr("Enter your restaurant's name") : null,
+    ownerName: step > 1 && !ownerName.trim() ? tr("Enter your name") : null,
+    email: step > 1 && !emailValid ? tr("Enter a valid email") : null,
+    password: step > 1 && password.length < 6 ? tr("At least 6 characters") : null,
+    confirm: step > 1 && confirm !== password ? tr("Passwords don't match") : null,
   };
 
   const canNext = () => {
@@ -812,10 +1192,13 @@ function SetupWizard({ c, isDark, setIsDark, onComplete, onCancel }) {
       <div style={{ display: "flex", justifyContent: "space-between", padding: "calc(18px + env(safe-area-inset-top, 0px)) 20px 18px" }}>
         {onCancel ? (
           <button onClick={onCancel} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 13.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-            <ChevronLeft size={16} /> All restaurants
+            <ChevronLeft size={16} /> {tr("All restaurants")}
           </button>
         ) : <span />}
-        <IconBtn c={c} onClick={() => setIsDark(!isDark)}>{isDark ? <Sun size={17} /> : <Moon size={17} />}</IconBtn>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <LangToggle c={c} lang={lang} setLang={setLang} />
+          <IconBtn c={c} onClick={() => setIsDark(!isDark)}>{isDark ? <Sun size={17} /> : <Moon size={17} />}</IconBtn>
+        </div>
       </div>
       <div style={{ flex: 1, padding: "0 20px 40px" }}>
         <div style={{ maxWidth: 440, margin: "0 auto" }}>
@@ -823,7 +1206,7 @@ function SetupWizard({ c, isDark, setIsDark, onComplete, onCancel }) {
             <div style={{ margin: "0 auto 6px", width: 150 }}>
               <OrdioraLogo c={c} size={150} />
             </div>
-            <div style={{ color: c.textSub, marginTop: 2, fontSize: 14.5 }}>Let's set up your restaurant.</div>
+            <div style={{ color: c.textSub, marginTop: 2, fontSize: 14.5 }}>{tr("Let's set up your restaurant.")}</div>
           </div>
 
           <div style={{ display: "flex", marginBottom: 24 }}>
@@ -834,7 +1217,7 @@ function SetupWizard({ c, isDark, setIsDark, onComplete, onCancel }) {
                   justifyContent: "center", background: i <= step ? c.text : c.surfaceAlt, color: i <= step ? c.bg : c.textFaint,
                   fontSize: 12.5, fontWeight: 700, border: `1px solid ${i <= step ? c.text : c.border}`,
                 }}>{i < step ? <Check size={14} /> : i + 1}</div>
-                <div style={{ fontSize: 11, color: i === step ? c.text : c.textFaint, fontWeight: i === step ? 700 : 500 }}>{s}</div>
+                <div style={{ fontSize: 11, color: i === step ? c.text : c.textFaint, fontWeight: i === step ? 700 : 500 }}>{tr(s)}</div>
               </div>
             ))}
           </div>
@@ -844,26 +1227,26 @@ function SetupWizard({ c, isDark, setIsDark, onComplete, onCancel }) {
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
                   <Store size={18} color={c.textSub} />
-                  <span style={{ fontWeight: 700, fontSize: 15, color: c.text }}>Your restaurant</span>
+                  <span style={{ fontWeight: 700, fontSize: 15, color: c.text }}>{tr("Your restaurant")}</span>
                 </div>
-                <TextInput c={c} label="Restaurant name" required value={restaurantName} onChange={setRestaurantName}
-                  placeholder="e.g. Rosemary & Rye" error={errors.restaurantName} />
-                <div style={{ fontSize: 12.5, color: c.textFaint }}>This appears on staff logins and reports.</div>
+                <TextInput c={c} label={tr("Restaurant name")} required value={restaurantName} onChange={setRestaurantName}
+                  placeholder={tr("e.g. Rosemary & Rye")} error={errors.restaurantName} />
+                <div style={{ fontSize: 12.5, color: c.textFaint }}>{tr("This appears on staff logins and reports.")}</div>
               </>
             )}
             {step === 1 && (
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
                   <CircleUser size={18} color={c.textSub} />
-                  <span style={{ fontWeight: 700, fontSize: 15, color: c.text }}>Create your owner account</span>
+                  <span style={{ fontWeight: 700, fontSize: 15, color: c.text }}>{tr("Create your owner account")}</span>
                 </div>
-                <TextInput c={c} label="Full name" required value={ownerName} onChange={setOwnerName} placeholder="Your name" error={errors.ownerName} />
-                <TextInput c={c} label="Email" required value={email} onChange={setEmail} placeholder="you@email.com" error={errors.email} />
-                <TextInput c={c} label="Password" required type="password" value={password} onChange={setPassword} placeholder="At least 6 characters" error={errors.password} />
-                <TextInput c={c} label="Confirm password" required type="password" value={confirm} onChange={setConfirm} placeholder="Repeat password" error={errors.confirm} />
+                <TextInput c={c} label={tr("Full name")} required value={ownerName} onChange={setOwnerName} placeholder={tr("Your name")} error={errors.ownerName} />
+                <TextInput c={c} label={tr("Email")} required value={email} onChange={setEmail} placeholder={tr("you@email.com")} error={errors.email} />
+                <TextInput c={c} label={tr("Password")} required type="password" value={password} onChange={setPassword} placeholder={tr("At least 6 characters")} error={errors.password} />
+                <TextInput c={c} label={tr("Confirm password")} required type="password" value={confirm} onChange={setConfirm} placeholder={tr("Repeat password")} error={errors.confirm} />
                 <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginTop: 4 }}>
                   <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={{ width: 17, height: 17, accentColor: c.text }} />
-                  <span style={{ fontSize: 13, color: c.textSub }}>Remember me on this device</span>
+                  <span style={{ fontSize: 13, color: c.textSub }}>{tr("Remember me on this device")}</span>
                 </label>
               </>
             )}
@@ -871,9 +1254,9 @@ function SetupWizard({ c, isDark, setIsDark, onComplete, onCancel }) {
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                   <LayoutGrid size={18} color={c.textSub} />
-                  <span style={{ fontWeight: 700, fontSize: 15, color: c.text }}>Add your tables</span>
+                  <span style={{ fontWeight: 700, fontSize: 15, color: c.text }}>{tr("Add your tables")}</span>
                 </div>
-                <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 16 }}>Optional — add them all at once, group by section, or skip and do this later in Settings.</div>
+                <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 16 }}>{tr("Optional — add them all at once, group by section, or skip and do this later in Settings.")}</div>
                 <TableManager c={c} tables={tables} setTables={setTables} compact />
               </>
             )}
@@ -881,13 +1264,13 @@ function SetupWizard({ c, isDark, setIsDark, onComplete, onCancel }) {
 
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <GhostButton c={c} onClick={() => step === 0 ? null : setStep(step - 1)} style={{ visibility: step === 0 ? "hidden" : "visible" }}>
-              <ChevronLeft size={15} /> Back
+              <ChevronLeft size={15} /> {tr("Back")}
             </GhostButton>
             {step < 2 ? (
-              <PrimaryButton c={c} disabled={!canNext()} onClick={() => setStep(step + 1)}>Next <ChevronRight size={15} /></PrimaryButton>
+              <PrimaryButton c={c} disabled={!canNext()} onClick={() => setStep(step + 1)}>{tr("Next")} <ChevronRight size={15} /></PrimaryButton>
             ) : (
               <PrimaryButton c={c} disabled={submitting} onClick={finish}>
-                {submitting ? <><Loader2 size={16} className="spin" /> Setting up…</> : "Finish setup"}
+                {submitting ? <><Loader2 size={16} className="spin" /> {tr("Setting up…")}</> : tr("Finish setup")}
               </PrimaryButton>
             )}
           </div>
@@ -919,36 +1302,37 @@ function DashboardScreen({ c, user, reservations, shifts, setView, openNewReserv
     { label: "Staff Shifts", sub: "View weekly schedule", icon: Clock, accent: c.amber, action: () => setView("shifts"), show: true },
     { label: "Team Chat", sub: "Message your team", icon: MessageSquare, accent: c.violet, action: () => setView("chat"), show: true },
   ].filter((q) => q.show);
+  const guestWord = (n) => plural(n, ["guest", "guests"], ["gost", "gosta", "gostiju"]);
 
   return (
     <div style={{ padding: "0 20px 24px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-        <span style={{ color: c.textSub, fontSize: 14 }}>Good day,</span>
+        <span style={{ color: c.textSub, fontSize: 14 }}>{tr("Good day,")}</span>
         <span style={{ fontWeight: 700, color: c.text, fontSize: 14 }}>{user.name}</span>
         <span style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: "auto", color: c.green, fontSize: 12, fontWeight: 600 }}>
-          <span style={{ width: 7, height: 7, borderRadius: 99, background: c.green, display: "inline-block" }} /> Live
+          <span style={{ width: 7, height: 7, borderRadius: 99, background: c.green, display: "inline-block" }} /> {tr("Live")}
         </span>
       </div>
-      <div style={{ fontFamily: fontStack().display, fontSize: 28, fontWeight: 600, color: c.text, margin: "2px 0 20px" }}>Dashboard</div>
+      <div style={{ fontFamily: fontStack().display, fontSize: 28, fontWeight: 600, color: c.text, margin: "2px 0 20px" }}>{tr("Dashboard")}</div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
-        <StatCard c={c} label="TODAY'S RESERVATIONS" value={todays.length} icon={CalendarDays} accent={c.blue} footer="bookings today" />
-        <StatCard c={c} label="TODAY'S GUESTS" value={covers} icon={Users} accent={c.rose} footer="expected covers" />
-        <StatCard c={c} label="ACTIVE SHIFTS" value={activeShifts} icon={Clock} accent={c.amber} footer="staff on duty" />
-        <StatCard c={c} label="PENDING" value={pending} icon={Bell} accent={c.rose} footer="awaiting confirmation" />
+        <StatCard c={c} label={tr("TODAY'S RESERVATIONS")} value={todays.length} icon={CalendarDays} accent={c.blue} footer={tr("bookings today")} />
+        <StatCard c={c} label={tr("TODAY'S GUESTS")} value={covers} icon={Users} accent={c.rose} footer={tr("expected covers")} />
+        <StatCard c={c} label={tr("ACTIVE SHIFTS")} value={activeShifts} icon={Clock} accent={c.amber} footer={tr("staff on duty")} />
+        <StatCard c={c} label={tr("PENDING")} value={pending} icon={Bell} accent={c.rose} footer={tr("awaiting confirmation")} />
       </div>
 
       <SectionCard c={c} style={{ marginBottom: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: upcoming.length ? 14 : 0 }}>
-          <span style={{ fontWeight: 700, fontSize: 16, color: c.text }}>Upcoming Reservations</span>
+          <span style={{ fontWeight: 700, fontSize: 16, color: c.text }}>{tr("Upcoming Reservations")}</span>
           <button onClick={() => setView("reservations")} style={{ background: "none", border: "none", color: c.textSub, fontSize: 13, display: "flex", alignItems: "center", gap: 2, cursor: "pointer" }}>
-            View all <ChevronRight size={14} />
+            {tr("View all")} <ChevronRight size={14} />
           </button>
         </div>
         {upcoming.length === 0 ? (
-          <EmptyState c={c} icon={CalendarDays} title="Nothing booked yet"
-            message="Reservations you take today will show up here."
-            actionLabel={canCreate ? "New reservation" : null} onAction={openNewReservation} />
+          <EmptyState c={c} icon={CalendarDays} title={tr("Nothing booked yet")}
+            message={tr("Reservations you take today will show up here.")}
+            actionLabel={canCreate ? tr("New reservation") : null} onAction={openNewReservation} />
         ) : upcoming.map((r) => (
           <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: `1px solid ${c.border}` }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: c.surfaceAlt, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: c.text }}>
@@ -956,15 +1340,15 @@ function DashboardScreen({ c, user, reservations, shifts, setView, openNewReserv
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, fontSize: 14.5, color: c.text }}>{r.name}</div>
-              <div style={{ fontSize: 12.5, color: c.textSub }}>{r.guests} guests</div>
+              <div style={{ fontSize: 12.5, color: c.textSub }}>{r.guests} {guestWord(r.guests)}</div>
             </div>
-            <Badge c={c} label={r.status} color={statusColor(c, r.status)} />
+            <Badge c={c} label={tr(r.status)} color={statusColor(c, r.status)} />
           </div>
         ))}
       </SectionCard>
 
       <SectionCard c={c}>
-        <div style={{ fontWeight: 700, fontSize: 16, color: c.text, marginBottom: 14 }}>Quick Actions</div>
+        <div style={{ fontWeight: 700, fontSize: 16, color: c.text, marginBottom: 14 }}>{tr("Quick Actions")}</div>
         {quickActions.map((qa, i) => {
           const Icon = qa.icon;
           return (
@@ -976,8 +1360,8 @@ function DashboardScreen({ c, user, reservations, shifts, setView, openNewReserv
                 <Icon size={17} color={qa.accent} />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 14.5, color: c.text }}>{qa.label}</div>
-                <div style={{ fontSize: 12.5, color: c.textSub }}>{qa.sub}</div>
+                <div style={{ fontWeight: 600, fontSize: 14.5, color: c.text }}>{tr(qa.label)}</div>
+                <div style={{ fontSize: 12.5, color: c.textSub }}>{tr(qa.sub)}</div>
               </div>
               <ChevronRight size={16} color={c.textFaint} />
             </button>
@@ -1021,8 +1405,8 @@ function ReservationsScreen({ c, reservations, setReservations, user, openNewRes
     <div style={{ padding: "0 20px 24px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "4px 0 16px" }}>
         <div>
-          <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text }}>Reservations</div>
-          <div style={{ fontSize: 13.5, color: c.textSub }}>All upcoming table bookings.</div>
+          <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text }}>{tr("Reservations")}</div>
+          <div style={{ fontSize: 13.5, color: c.textSub }}>{tr("All upcoming table bookings.")}</div>
         </div>
         {canCreate && reservations.length > 0 && (
           <button onClick={openNewReservation} style={{ width: 42, height: 42, borderRadius: 14, background: c.cta, border: "none", color: c.ctaText, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
@@ -1035,7 +1419,7 @@ function ReservationsScreen({ c, reservations, setReservations, user, openNewRes
         <>
           <div style={{ position: "relative", marginBottom: 10 }}>
             <Search size={15} color={c.textFaint} style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)" }} />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by guest or table"
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr("Search by guest or table")}
               style={{ width: "100%", padding: "11px 12px 11px 36px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
           </div>
           <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 16, paddingBottom: 2 }}>
@@ -1045,7 +1429,7 @@ function ReservationsScreen({ c, reservations, setReservations, user, openNewRes
                 border: `1px solid ${statusFilter === st ? c.text : c.border}`,
                 background: statusFilter === st ? c.text : c.surface, color: statusFilter === st ? c.bg : c.textSub,
                 textTransform: "capitalize",
-              }}>{st}</button>
+              }}>{tr(st)}</button>
             ))}
           </div>
         </>
@@ -1053,28 +1437,28 @@ function ReservationsScreen({ c, reservations, setReservations, user, openNewRes
 
       {!canCreate && (
         <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14, background: c.surfaceAlt, padding: "10px 14px", borderRadius: 12 }}>
-          Viewing only — ask the front of house to add or edit bookings.
+          {tr("Viewing only — ask the front of house to add or edit bookings.")}
         </div>
       )}
       {Object.keys(grouped).length === 0 && (
         reservations.length === 0 ? (
-          <EmptyState c={c} icon={CalendarDays} title="No reservations yet"
-            message={canCreate ? "Bookings you create will appear here, grouped by date." : "Once the team starts booking tables, they'll show up here."}
-            actionLabel={canCreate ? "New reservation" : null} onAction={openNewReservation} />
+          <EmptyState c={c} icon={CalendarDays} title={tr("No reservations yet")}
+            message={canCreate ? tr("Bookings you create will appear here, grouped by date.") : tr("Once the team starts booking tables, they'll show up here.")}
+            actionLabel={canCreate ? tr("New reservation") : null} onAction={openNewReservation} />
         ) : statusFilter === "past" ? (
-          <EmptyState c={c} icon={Clock} title="No past reservations" message="Finished bookings will appear here once their time has passed." />
+          <EmptyState c={c} icon={Clock} title={tr("No past reservations")} message={tr("Finished bookings will appear here once their time has passed.")} />
         ) : statusFilter === "all" ? (
-          <EmptyState c={c} icon={CalendarDays} title="Nothing coming up"
-            message="No active reservations right now. Finished ones move to the Past tab automatically." />
+          <EmptyState c={c} icon={CalendarDays} title={tr("Nothing coming up")}
+            message={tr("No active reservations right now. Finished ones move to the Past tab automatically.")} />
         ) : (
-          <EmptyState c={c} icon={Search} title="No matches" message="Try a different name, table, or status filter." />
+          <EmptyState c={c} icon={Search} title={tr("No matches")} message={tr("Try a different name, table, or status filter.")} />
         )
       )}
       {Object.entries(grouped).map(([date, list]) => (
         <div key={date} style={{ marginBottom: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 700, color: c.textFaint, letterSpacing: "0.04em", marginBottom: 10 }}>
             <span>{formatDateLabel(date)}</span>
-            <span>{list.length} booking{list.length !== 1 ? "s" : ""}</span>
+            <span>{list.length} {plural(list.length, ["booking", "bookings"], ["rezervacija", "rezervacije", "rezervacija"])}</span>
           </div>
           {list.map((r) => (
             <div key={r.id} style={{ marginBottom: 10 }}>
@@ -1089,10 +1473,10 @@ function ReservationsScreen({ c, reservations, setReservations, user, openNewRes
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontWeight: 700, fontSize: 15, color: c.text }}>{r.name}</span>
-                    <Badge c={c} label={r.status} color={statusColor(c, r.status)} />
+                    <Badge c={c} label={tr(r.status)} color={statusColor(c, r.status)} />
                   </div>
                   <div style={{ fontSize: 12.5, color: c.textSub, marginTop: 3, display: "flex", gap: 10 }}>
-                    <span>{r.guests} guests</span><span>{r.table || "—"}</span><span>{r.duration || 90} min</span>
+                    <span>{r.guests} {plural(r.guests, ["guest", "guests"], ["gost", "gosta", "gostiju"])}</span><span>{r.table || "—"}</span><span>{r.duration || 90} min</span>
                   </div>
                 </div>
                 {user.role === "owner" && (
@@ -1113,7 +1497,7 @@ function ReservationsScreen({ c, reservations, setReservations, user, openNewRes
                           border: `1px solid ${r.status === st ? statusColor(c, st) : c.border}`,
                           background: r.status === st ? statusColor(c, st) + "1A" : "transparent",
                           color: r.status === st ? statusColor(c, st) : c.textSub, fontWeight: 600,
-                        }}>{st}</button>
+                        }}>{tr(st)}</button>
                       ))}
                     </div>
                   )}
@@ -1176,9 +1560,9 @@ function ReservationWizard({ c, onClose, onCreate, onUpdate, onDelete, reservati
       <div style={{ padding: "calc(18px + env(safe-area-inset-top, 0px)) 20px calc(40px + env(safe-area-inset-bottom, 0px))", maxWidth: 480, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: c.text }}><ChevronLeft size={22} /></button>
-          <div style={{ fontFamily: fontStack().display, fontSize: 22, fontWeight: 600, color: c.text }}>{editing ? "Edit Reservation" : "New Reservation"}</div>
+          <div style={{ fontFamily: fontStack().display, fontSize: 22, fontWeight: 600, color: c.text }}>{editing ? tr("Edit Reservation") : tr("New Reservation")}</div>
         </div>
-        <div style={{ color: c.textSub, fontSize: 13.5, marginBottom: 20, marginLeft: 36 }}>{editing ? "Update this table booking." : "Create a new table booking."}</div>
+        <div style={{ color: c.textSub, fontSize: 13.5, marginBottom: 20, marginLeft: 36 }}>{editing ? tr("Update this table booking.") : tr("Create a new table booking.")}</div>
 
         <div style={{ display: "flex", marginBottom: 24 }}>
           {steps.map((s, i) => (
@@ -1188,7 +1572,7 @@ function ReservationWizard({ c, onClose, onCreate, onUpdate, onDelete, reservati
                 justifyContent: "center", background: i <= step ? c.text : c.surfaceAlt, color: i <= step ? c.bg : c.textFaint,
                 fontSize: 13, fontWeight: 700, border: `1px solid ${i <= step ? c.text : c.border}`,
               }}>{i < step ? <Check size={15} /> : i + 1}</div>
-              <div style={{ fontSize: 11.5, color: i === step ? c.text : c.textFaint, fontWeight: i === step ? 700 : 500 }}>{s}</div>
+              <div style={{ fontSize: 11.5, color: i === step ? c.text : c.textFaint, fontWeight: i === step ? 700 : 500 }}>{tr(s)}</div>
             </div>
           ))}
         </div>
@@ -1196,27 +1580,27 @@ function ReservationWizard({ c, onClose, onCreate, onUpdate, onDelete, reservati
         <SectionCard c={c} style={{ marginBottom: 20 }}>
           {step === 0 && (
             <>
-              <TextInput c={c} label="Guest Name" required value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="Full name" />
-              <TextInput c={c} label="Phone" required value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} placeholder="+1-555-0000" />
-              <TextInput c={c} label="Email (optional)" value={form.email} onChange={(v) => setForm({ ...form, email: v })} placeholder="guest@email.com" />
+              <TextInput c={c} label={tr("Guest Name")} required value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder={tr("Full name")} />
+              <TextInput c={c} label={tr("Phone")} required value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} placeholder="+385-91-000-0000" />
+              <TextInput c={c} label={tr("Email (optional)")} value={form.email} onChange={(v) => setForm({ ...form, email: v })} placeholder={tr("guest@email.com")} />
             </>
           )}
           {step === 1 && (
             <>
-              <TextInput c={c} label="Date" required type="date" value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
-              <TextInput c={c} label="Time" required type="time" value={form.time} onChange={(v) => setForm({ ...form, time: v })} />
-              <TextInput c={c} label="Guests" required type="number" value={form.guests} onChange={(v) => setForm({ ...form, guests: v })} />
-              <TextInput c={c} label="Duration (minutes)" type="number" value={form.duration} onChange={(v) => setForm({ ...form, duration: v })} />
+              <TextInput c={c} label={tr("Date")} required type="date" value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
+              <TextInput c={c} label={tr("Time")} required type="time" value={form.time} onChange={(v) => setForm({ ...form, time: v })} />
+              <TextInput c={c} label={tr("Guests")} required type="number" value={form.guests} onChange={(v) => setForm({ ...form, guests: v })} />
+              <TextInput c={c} label={tr("Duration (minutes)")} type="number" value={form.duration} onChange={(v) => setForm({ ...form, duration: v })} />
             </>
           )}
           {step === 2 && (
             tables.length === 0 ? (
-              <EmptyState c={c} icon={LayoutGrid} title="No tables set up"
-                message="Ask the owner to add tables under More → Settings before booking." />
+              <EmptyState c={c} icon={LayoutGrid} title={tr("No tables set up")}
+                message={tr("Ask the owner to add tables under More → Settings before booking.")} />
             ) : (
               Object.entries(grouped).map(([zoneName, list]) => (
                 <div key={zoneName} style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: c.textFaint, letterSpacing: "0.05em", marginBottom: 8 }}>{zoneName.toUpperCase()}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: c.textFaint, letterSpacing: "0.05em", marginBottom: 8 }}>{(zoneName === "No zone" ? tr("No zone") : zoneName).toUpperCase()}</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                     {list.map((t) => {
                       const conflict = conflictFor(t);
@@ -1229,7 +1613,7 @@ function ReservationWizard({ c, onClose, onCreate, onUpdate, onDelete, reservati
                         }}>
                           <div style={{ fontWeight: 700, fontSize: 14, color: c.text }}>{t.name}</div>
                           <div style={{ fontSize: 11.5, color: c.textSub }}>
-                            {conflict ? `Booked ${conflict.time} by ${conflict.name}` : `Seats ${t.capacity}`}
+                            {conflict ? `${tr("Booked at")} ${conflict.time} · ${conflict.name}` : `${tr("Seats")} ${t.capacity}`}
                           </div>
                         </button>
                       );
@@ -1242,7 +1626,7 @@ function ReservationWizard({ c, onClose, onCreate, onUpdate, onDelete, reservati
           {step === 3 && (
             <div style={{ fontSize: 14.5, color: c.text, lineHeight: 2 }}>
               <div><b>{form.name}</b> · {form.phone}</div>
-              <div>{form.date} at {form.time} · {form.guests} guests</div>
+              <div>{form.date} {tr("at")} {form.time} · {form.guests} {plural(form.guests, ["guest", "guests"], ["gost", "gosta", "gostiju"])}</div>
               <div>{form.table} · {form.duration} min</div>
             </div>
           )}
@@ -1253,23 +1637,23 @@ function ReservationWizard({ c, onClose, onCreate, onUpdate, onDelete, reservati
             display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: c.rose,
             fontSize: 13.5, fontWeight: 600, cursor: "pointer", marginBottom: 16,
           }}>
-            <Trash2 size={14} /> Delete reservation
+            <Trash2 size={14} /> {tr("Delete reservation")}
           </button>
         )}
 
         <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <GhostButton c={c} onClick={() => step === 0 ? onClose() : setStep(step - 1)}><ChevronLeft size={15} /> Back</GhostButton>
+          <GhostButton c={c} onClick={() => step === 0 ? onClose() : setStep(step - 1)}><ChevronLeft size={15} /> {tr("Back")}</GhostButton>
           {step < 3 ? (
-            <PrimaryButton c={c} disabled={!canNext()} onClick={() => setStep(step + 1)}>Next <ChevronRight size={15} /></PrimaryButton>
+            <PrimaryButton c={c} disabled={!canNext()} onClick={() => setStep(step + 1)}>{tr("Next")} <ChevronRight size={15} /></PrimaryButton>
           ) : (
-            <PrimaryButton c={c} onClick={submit}>{editing ? "Save changes" : "Confirm booking"}</PrimaryButton>
+            <PrimaryButton c={c} onClick={submit}>{editing ? tr("Save changes") : tr("Confirm booking")}</PrimaryButton>
           )}
         </div>
       </div>
 
       {confirmDelete && (
-        <ConfirmDialog c={c} title="Delete this reservation?" message={`${editing.name}'s booking will be permanently removed.`}
-          confirmLabel="Delete" onCancel={() => setConfirmDelete(false)}
+        <ConfirmDialog c={c} title={tr("Delete this reservation?")} message={LANG === "hr" ? `Rezervacija gosta ${editing.name} bit će trajno uklonjena.` : `${editing.name}'s booking will be permanently removed.`}
+          confirmLabel={tr("Delete")} onCancel={() => setConfirmDelete(false)}
           onConfirm={() => { onDelete(editing.id); setConfirmDelete(false); onClose(); }} />
       )}
     </div>
@@ -1292,6 +1676,7 @@ function ShiftsScreen({ c, shifts, setShifts, staff, user }) {
   const [newShift, setNewShift] = useState({ staffId: staff[0]?.id, start: "16:00", end: "23:00" });
 
   const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(d.getDate() + i); return d; });
+  const locale = LANG === "hr" ? "hr-HR" : undefined;
   const iso = (d) => localDateIso(d);
   const canManage = user.role === "owner";
   const totalShifts = shifts.filter((s) => days.some((d) => iso(d) === s.day)).length;
@@ -1306,24 +1691,24 @@ function ShiftsScreen({ c, shifts, setShifts, staff, user }) {
 
   return (
     <div style={{ padding: "0 20px 24px" }}>
-      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 2px" }}>Shifts</div>
-      <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 18 }}>Weekly schedule and staff assignments.</div>
+      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 2px" }}>{tr("Shifts")}</div>
+      <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 18 }}>{tr("Weekly schedule and staff assignments.")}</div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <button onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate() - 7); setWeekStart(d); }} style={{ background: "none", border: "none", cursor: "pointer", color: c.text }}><ChevronLeft size={20} /></button>
         <div style={{ fontSize: 14, fontWeight: 600, color: c.text }}>
-          {days[0].toLocaleDateString(undefined, { month: "short", day: "numeric" })} – {days[6].toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+          {days[0].toLocaleDateString(locale, { month: "short", day: "numeric" })} – {days[6].toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" })}
         </div>
         <button onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate() + 7); setWeekStart(d); }} style={{ background: "none", border: "none", cursor: "pointer", color: c.text }}><ChevronRight size={20} /></button>
       </div>
       <div style={{ display: "flex", gap: 16, fontSize: 12.5, color: c.textSub, marginBottom: 16 }}>
-        <span><CalendarDays size={13} style={{ verticalAlign: -2 }} /> {totalShifts} shifts</span>
-        <span><Users size={13} style={{ verticalAlign: -2 }} /> {staffOnDuty} staff</span>
+        <span><CalendarDays size={13} style={{ verticalAlign: -2 }} /> {totalShifts} {plural(totalShifts, ["shift", "shifts"], ["smjena", "smjene", "smjena"])}</span>
+        <span><Users size={13} style={{ verticalAlign: -2 }} /> {staffOnDuty} {plural(staffOnDuty, ["staff", "staff"], ["djelatnik", "djelatnika", "djelatnika"])}</span>
       </div>
 
       {staff.length === 0 && (
-        <EmptyState c={c} icon={Users} title="No team members yet"
-          message={canManage ? "Add staff under More → Team before scheduling shifts." : "Once staff are added, shifts will show up here."} />
+        <EmptyState c={c} icon={Users} title={tr("No team members yet")}
+          message={canManage ? tr("Add staff under More → Team before scheduling shifts.") : tr("Once staff are added, shifts will show up here.")} />
       )}
 
       {staff.length > 0 && days.map((d) => {
@@ -1333,8 +1718,8 @@ function ShiftsScreen({ c, shifts, setShifts, staff, user }) {
           <SectionCard key={key} c={c} style={{ marginBottom: 12, padding: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: dayShifts.length ? 10 : 0 }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14.5, color: c.text }}>{d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</div>
-                <div style={{ fontSize: 12, color: c.textFaint }}>{dayShifts.length === 0 ? "No shifts" : `${dayShifts.length} shift${dayShifts.length > 1 ? "s" : ""}`}</div>
+                <div style={{ fontWeight: 700, fontSize: 14.5, color: c.text }}>{d.toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric" })}</div>
+                <div style={{ fontSize: 12, color: c.textFaint }}>{dayShifts.length === 0 ? tr("No shifts") : `${dayShifts.length} ${plural(dayShifts.length, ["shift", "shifts"], ["smjena", "smjene", "smjena"])}`}</div>
               </div>
               {canManage && (
                 <button onClick={() => { setNewShift({ staffId: staff[0]?.id, start: "16:00", end: "23:00" }); setAddFor(key); }} style={{ width: 30, height: 30, borderRadius: 10, border: `1px solid ${c.border}`, background: c.surfaceAlt, color: c.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1350,7 +1735,7 @@ function ShiftsScreen({ c, shifts, setShifts, staff, user }) {
                   <Avatar c={c} name={person.name} role={person.role} size={30} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 600, color: c.text }}>{person.name}</div>
-                    <div style={{ fontSize: 11.5, color: c.textSub }}>{s.start} – {s.end} · {roleMeta(person.role).label}</div>
+                    <div style={{ fontSize: 11.5, color: c.textSub }}>{s.start} – {s.end} · {tr(roleMeta(person.role).label)}</div>
                   </div>
                   {canManage && <button onClick={() => removeShift(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textFaint }}><Trash2 size={15} /></button>}
                 </div>
@@ -1363,17 +1748,17 @@ function ShiftsScreen({ c, shifts, setShifts, staff, user }) {
       {addFor && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={() => setAddFor(null)}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: c.surface, width: "100%", maxWidth: 520, margin: "0 auto", borderRadius: "24px 24px 0 0", padding: "22px 22px calc(22px + env(safe-area-inset-bottom, 0px))", fontFamily: fontStack().body, maxHeight: "88dvh", overflowY: "auto" }}>
-            <div style={{ fontWeight: 700, fontSize: 17, color: c.text, marginBottom: 14 }}>Add shift · {formatDateLabel(addFor)}</div>
-            <div style={{ fontSize: 13, color: c.textSub, marginBottom: 6 }}>Staff member</div>
+            <div style={{ fontWeight: 700, fontSize: 17, color: c.text, marginBottom: 14 }}>{tr("Add shift")} · {formatDateLabel(addFor)}</div>
+            <div style={{ fontSize: 13, color: c.textSub, marginBottom: 6 }}>{tr("Staff member")}</div>
             <select value={newShift.staffId} onChange={(e) => setNewShift({ ...newShift, staffId: e.target.value })}
               style={{ width: "100%", padding: 12, borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, marginBottom: 14, fontSize: 16, boxSizing: "border-box" }}>
-              {staff.map((s) => <option key={s.id} value={s.id}>{s.name} ({roleMeta(s.role).label})</option>)}
+              {staff.map((s) => <option key={s.id} value={s.id}>{s.name} ({tr(roleMeta(s.role).label)})</option>)}
             </select>
             <div style={{ display: "flex", gap: 10 }}>
-              <TextInput c={c} label="Start" type="time" value={newShift.start} onChange={(v) => setNewShift({ ...newShift, start: v })} />
-              <TextInput c={c} label="End" type="time" value={newShift.end} onChange={(v) => setNewShift({ ...newShift, end: v })} />
+              <TextInput c={c} label={tr("Start")} type="time" value={newShift.start} onChange={(v) => setNewShift({ ...newShift, start: v })} />
+              <TextInput c={c} label={tr("End")} type="time" value={newShift.end} onChange={(v) => setNewShift({ ...newShift, end: v })} />
             </div>
-            <PrimaryButton c={c} full onClick={addShift}>Add shift</PrimaryButton>
+            <PrimaryButton c={c} full onClick={addShift}>{tr("Add shift")}</PrimaryButton>
           </div>
         </div>
       )}
@@ -1401,13 +1786,13 @@ function ChatScreen({ c, chat, setChat, staff, user, notify }) {
     if (!text.trim() || !allowed || !me) return;
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     setChat((prev) => ({ ...prev, [channel]: [...(prev[channel] || []), { id: uid(), staffId: me.id, text, time }] }));
-    notify("chat", `${me.name} posted in #${channel}: "${text.length > 40 ? text.slice(0, 40) + "…" : text}"`);
+    notify("chat", `${me.name} ${tr("posted in")} #${channel}: "${text.length > 40 ? text.slice(0, 40) + "…" : text}"`);
     setText("");
   };
 
   return (
     <div style={{ padding: "0 20px 0", display: "flex", flexDirection: "column", minHeight: 0, height: "calc(100dvh - 210px)" }}>
-      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 14px" }}>Chat</div>
+      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 14px" }}>{tr("Chat")}</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         {channels.map((ch) => {
           const Icon = ch.icon;
@@ -1419,7 +1804,7 @@ function ChatScreen({ c, chat, setChat, staff, user, notify }) {
               display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
             }}>
               <Icon size={16} color={active ? c.text : c.textFaint} />
-              <span style={{ fontSize: 12.5, fontWeight: active ? 700 : 500, color: active ? c.text : c.textFaint }}>{ch.label}</span>
+              <span style={{ fontSize: 12.5, fontWeight: active ? 700 : 500, color: active ? c.text : c.textFaint }}>{tr(ch.label)}</span>
             </button>
           );
         })}
@@ -1427,8 +1812,8 @@ function ChatScreen({ c, chat, setChat, staff, user, notify }) {
 
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 10 }}>
         {messages.length === 0 ? (
-          <EmptyState c={c} icon={MessageSquare} title="No messages yet"
-            message={allowed ? "Start the conversation with your team." : "Nothing posted here yet."} />
+          <EmptyState c={c} icon={MessageSquare} title={tr("No messages yet")}
+            message={allowed ? tr("Start the conversation with your team.") : tr("Nothing posted here yet.")} />
         ) : messages.map((m) => {
           const author = staffById(staff, m.staffId);
           const mine = author?.id === me?.id;
@@ -1436,7 +1821,7 @@ function ChatScreen({ c, chat, setChat, staff, user, notify }) {
           return (
             <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start", marginBottom: 14 }}>
               <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4, flexDirection: mine ? "row-reverse" : "row" }}>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: accent }}>{mine ? "You" : author?.name || "Unknown"}</span>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: accent }}>{mine ? tr("You") : author?.name || tr("Unknown")}</span>
                 <span style={{ fontSize: 11, color: c.textFaint }}>{m.time}</span>
               </div>
               <div style={{
@@ -1455,14 +1840,14 @@ function ChatScreen({ c, chat, setChat, staff, user, notify }) {
         {allowed ? (
           <div style={{ display: "flex", gap: 8 }}>
             <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}
-              placeholder={`Message #${channel}`}
+              placeholder={`${tr("Message")} #${channel}`}
               style={{ flex: 1, minWidth: 0, padding: "12px 14px", borderRadius: 14, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, outline: "none", boxSizing: "border-box" }} />
             <button onClick={send} style={{ width: 46, borderRadius: 14, border: "none", background: c.cta, color: c.ctaText, cursor: "pointer" }}>
               <ChevronRight size={18} style={{ margin: "0 auto" }} />
             </button>
           </div>
         ) : (
-          <div style={{ textAlign: "center", fontSize: 12.5, color: c.textFaint, padding: "10px 0" }}>Only the owner can send messages here</div>
+          <div style={{ textAlign: "center", fontSize: 12.5, color: c.textFaint, padding: "10px 0" }}>{tr("Only the owner can send messages here")}</div>
         )}
       </div>
     </div>
@@ -1508,15 +1893,15 @@ function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
   if (!isOwner) {
     return (
       <div style={{ padding: "0 20px 24px" }}>
-        <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 18px" }}>My Analytics</div>
+        <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 18px" }}>{tr("My Analytics")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
-          <StatCard c={c} label="MY SHIFTS" value={myShifts.length} icon={Clock} accent={c.amber} />
-          <StatCard c={c} label="HOURS SCHEDULED" value={myHours.toFixed(0)} icon={BarChart3} accent={c.blue} />
+          <StatCard c={c} label={tr("MY SHIFTS")} value={myShifts.length} icon={Clock} accent={c.amber} />
+          <StatCard c={c} label={tr("HOURS SCHEDULED")} value={myHours.toFixed(0)} icon={BarChart3} accent={c.blue} />
         </div>
         <SectionCard c={c}>
-          <div style={{ fontWeight: 700, color: c.text, marginBottom: 10 }}>This week</div>
+          <div style={{ fontWeight: 700, color: c.text, marginBottom: 10 }}>{tr("This week")}</div>
           {myShifts.length === 0 ? (
-            <EmptyState c={c} icon={Clock} title="No shifts scheduled" message="Check back once the owner publishes the schedule." />
+            <EmptyState c={c} icon={Clock} title={tr("No shifts scheduled")} message={tr("Check back once the owner publishes the schedule.")} />
           ) : (
             <div style={{ fontSize: 13.5, color: c.textSub, lineHeight: 1.8 }}>
               {myShifts.map((s) => <div key={s.id}>{formatDateLabel(s.day)} · {s.start} – {s.end}</div>)}
@@ -1530,9 +1915,9 @@ function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
   if (totalRes === 0) {
     return (
       <div style={{ padding: "0 20px 24px" }}>
-        <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 18px" }}>Analytics</div>
+        <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 18px" }}>{tr("Analytics")}</div>
         <SectionCard c={c}>
-          <EmptyState c={c} icon={BarChart3} title="No data yet" message="Once reservations start coming in, trends and charts will appear here." />
+          <EmptyState c={c} icon={BarChart3} title={tr("No data yet")} message={tr("Once reservations start coming in, trends and charts will appear here.")} />
         </SectionCard>
       </div>
     );
@@ -1540,16 +1925,16 @@ function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
 
   return (
     <div style={{ padding: "0 20px 24px" }}>
-      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 18px" }}>Analytics</div>
+      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 18px" }}>{tr("Analytics")}</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
-        <StatCard c={c} label="TOTAL RESERVATIONS" value={totalRes} icon={Check} accent={c.blue} />
-        <StatCard c={c} label="TOTAL GUESTS" value={totalGuests} icon={Users} accent={c.rose} />
-        <StatCard c={c} label="OCCUPANCY RATE" value={occ + "%"} icon={BarChart3} accent={c.blue} />
-        <StatCard c={c} label="NO-SHOWS" value={noshow} icon={ArrowDownRight} accent={c.rose} />
+        <StatCard c={c} label={tr("TOTAL RESERVATIONS")} value={totalRes} icon={Check} accent={c.blue} />
+        <StatCard c={c} label={tr("TOTAL GUESTS")} value={totalGuests} icon={Users} accent={c.rose} />
+        <StatCard c={c} label={tr("OCCUPANCY RATE")} value={occ + "%"} icon={BarChart3} accent={c.blue} />
+        <StatCard c={c} label={tr("NO-SHOWS")} value={noshow} icon={ArrowDownRight} accent={c.rose} />
       </div>
 
       <SectionCard c={c} style={{ marginBottom: 16 }}>
-        <div style={{ fontWeight: 700, color: c.text, marginBottom: 12 }}>Reservations Over Time</div>
+        <div style={{ fontWeight: 700, color: c.text, marginBottom: 12 }}>{tr("Reservations Over Time")}</div>
         <div style={{ width: "100%", height: 180 }}>
           <ResponsiveContainer>
             <LineChart data={byDate}>
@@ -1564,7 +1949,7 @@ function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
       </SectionCard>
 
       <SectionCard c={c} style={{ marginBottom: 16 }}>
-        <div style={{ fontWeight: 700, color: c.text, marginBottom: 12 }}>Peak Hours</div>
+        <div style={{ fontWeight: 700, color: c.text, marginBottom: 12 }}>{tr("Peak Hours")}</div>
         <div style={{ width: "100%", height: 200 }}>
           <ResponsiveContainer>
             <BarChart data={peakHours}>
@@ -1580,12 +1965,12 @@ function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
       </SectionCard>
 
       <SectionCard c={c}>
-        <div style={{ fontWeight: 700, color: c.text, marginBottom: 14 }}>Booking Status Breakdown</div>
+        <div style={{ fontWeight: 700, color: c.text, marginBottom: 14 }}>{tr("Booking Status Breakdown")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {[["Confirmed", confirmed, c.green], ["Completed", completed, c.blue], ["Cancelled", cancelled, c.rose], ["No-shows", noshow, c.amber]].map(([label, val, color]) => (
             <div key={label} style={{ background: c.surfaceAlt, borderRadius: 14, padding: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: c.textSub, marginBottom: 8 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 99, background: color, display: "inline-block" }} /> {label}
+                <span style={{ width: 8, height: 8, borderRadius: 99, background: color, display: "inline-block" }} /> {tr(label)}
               </div>
               <div style={{ fontSize: 22, fontWeight: 700, color: c.text }}>{val}</div>
               <div style={{ fontSize: 11.5, color: c.textFaint }}>{totalRes ? Math.round((val / totalRes) * 100) : 0}%</div>
@@ -1603,7 +1988,7 @@ function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
 
 function CredentialsModal({ c, account, restaurant, onClose }) {
   const [copied, setCopied] = useState(false);
-  const text = `ORDIORA login for ${restaurant.name}\nRestaurant: ${restaurant.name}\nPassword: ${account.password}`;
+  const text = `${tr("ORDIORA login for")} ${restaurant.name}\n${tr("Restaurant")}: ${restaurant.name}\n${tr("Password")}: ${account.password}`;
   const copy = () => {
     copyToClipboard(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
   };
@@ -1613,18 +1998,18 @@ function CredentialsModal({ c, account, restaurant, onClose }) {
         <div style={{ width: 48, height: 48, borderRadius: 14, background: c.green + "1A", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
           <CheckCircle2 size={22} color={c.green} />
         </div>
-        <div style={{ fontWeight: 700, fontSize: 18, color: c.text, marginBottom: 4 }}>{account.name} added</div>
-        <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 18 }}>Share these login details with them — they sign in with the restaurant name and this password. You can view the password again anytime from the Team list.</div>
+        <div style={{ fontWeight: 700, fontSize: 18, color: c.text, marginBottom: 4 }}>{account.name} {tr("added")}</div>
+        <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 18 }}>{tr("Share these login details with them — they sign in with the restaurant name and this password. You can view the password again anytime from the Team list.")}</div>
         <div style={{ background: c.surfaceAlt, borderRadius: 14, padding: 16, marginBottom: 18 }}>
-          <div style={{ fontSize: 11, color: c.textFaint, fontWeight: 700, letterSpacing: "0.05em", marginBottom: 3 }}>RESTAURANT</div>
+          <div style={{ fontSize: 11, color: c.textFaint, fontWeight: 700, letterSpacing: "0.05em", marginBottom: 3 }}>{tr("RESTAURANT")}</div>
           <div style={{ fontSize: 14.5, color: c.text, fontWeight: 600, marginBottom: 12 }}>{restaurant.name}</div>
-          <div style={{ fontSize: 11, color: c.textFaint, fontWeight: 700, letterSpacing: "0.05em", marginBottom: 3 }}>PASSWORD</div>
+          <div style={{ fontSize: 11, color: c.textFaint, fontWeight: 700, letterSpacing: "0.05em", marginBottom: 3 }}>{tr("PASSWORD")}</div>
           <div style={{ fontSize: 14.5, color: c.text, fontWeight: 600, fontFamily: "monospace" }}>{account.password}</div>
         </div>
         <PrimaryButton c={c} full onClick={copy} style={{ marginBottom: 10 }}>
-          {copied ? <><Check size={16} /> Copied</> : <><Copy size={16} /> Copy details</>}
+          {copied ? <><Check size={16} /> {tr("Copied")}</> : <><Copy size={16} /> {tr("Copy details")}</>}
         </PrimaryButton>
-        <GhostButton c={c} full onClick={onClose}>Done</GhostButton>
+        <GhostButton c={c} full onClick={onClose}>{tr("Done")}</GhostButton>
       </div>
     </div>
   );
@@ -1641,17 +2026,17 @@ function RecoveryCodeModal({ c, code, restaurant, onClose }) {
         <div style={{ width: 48, height: 48, borderRadius: 14, background: c.amber + "1A", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
           <KeyRound size={22} color={c.amber} />
         </div>
-        <div style={{ fontWeight: 700, fontSize: 18, color: c.text, marginBottom: 4 }}>Save your recovery code</div>
+        <div style={{ fontWeight: 700, fontSize: 18, color: c.text, marginBottom: 4 }}>{tr("Save your recovery code")}</div>
         <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 18 }}>
-          If you ever forget your password, this code lets you reset it on the sign-in screen. Store it somewhere safe — you can view it again anytime in Settings.
+          {tr("If you ever forget your password, this code lets you reset it on the sign-in screen. Store it somewhere safe — you can view it again anytime in Settings.")}
         </div>
         <div style={{ background: c.surfaceAlt, borderRadius: 14, padding: 16, marginBottom: 18, textAlign: "center" }}>
           <div style={{ fontSize: 24, fontWeight: 700, color: c.text, letterSpacing: "0.14em", fontFamily: "monospace" }}>{code}</div>
         </div>
         <PrimaryButton c={c} full onClick={copy} style={{ marginBottom: 10 }}>
-          {copied ? <><Check size={16} /> Copied</> : <><Copy size={16} /> Copy code</>}
+          {copied ? <><Check size={16} /> {tr("Copied")}</> : <><Copy size={16} /> {tr("Copy code")}</>}
         </PrimaryButton>
-        <GhostButton c={c} full onClick={onClose}>I've saved it</GhostButton>
+        <GhostButton c={c} full onClick={onClose}>{tr("I've saved it")}</GhostButton>
       </div>
     </div>
   );
@@ -1671,8 +2056,8 @@ function StaffScreen({ c, staff, setStaff, user, restaurant, onPasswordChanged }
   const openReset = (s) => { setPwErr(""); setPwValue(generatePassword()); setPwTarget(s); };
   const saveReset = () => {
     const next = pwValue.trim();
-    if (next.length < 6) { setPwErr("At least 6 characters."); return; }
-    if (staff.some((a) => a.id !== pwTarget.id && a.password === next)) { setPwErr("That password is already in use by another account."); return; }
+    if (next.length < 6) { setPwErr(tr("At least 6 characters.")); return; }
+    if (staff.some((a) => a.id !== pwTarget.id && a.password === next)) { setPwErr(tr("That password is already in use by another account.")); return; }
     setStaff((prev) => prev.map((a) => a.id === pwTarget.id ? { ...a, password: next } : a));
     if (onPasswordChanged) onPasswordChanged(pwTarget.id, next);
     setRevealed((r) => ({ ...r, [pwTarget.id]: true }));
@@ -1701,26 +2086,26 @@ function StaffScreen({ c, staff, setStaff, user, restaurant, onPasswordChanged }
   return (
     <div style={{ padding: "0 20px 24px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "4px 0 18px" }}>
-        <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text }}>Team</div>
+        <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text }}>{tr("Team")}</div>
         {canManage && (
           <button onClick={() => setAdding(true)} style={{ width: 40, height: 40, borderRadius: 13, background: c.cta, border: "none", color: c.ctaText, cursor: "pointer" }}><Plus size={18} style={{ margin: "0 auto" }} /></button>
         )}
       </div>
 
       {nonOwnerCount === 0 ? (
-        <EmptyState c={c} icon={Users} title="Build your team"
-          message={canManage ? "Add waiters and chefs — we'll generate their login for you." : "The owner hasn't added any staff yet."}
-          actionLabel={canManage ? "Add team member" : null} onAction={() => setAdding(true)} />
+        <EmptyState c={c} icon={Users} title={tr("Build your team")}
+          message={canManage ? tr("Add waiters and chefs — we'll generate their login for you.") : tr("The owner hasn't added any staff yet.")}
+          actionLabel={canManage ? tr("Add team member") : null} onAction={() => setAdding(true)} />
       ) : (
         staff.map((s) => (
           <div key={s.id} style={{ padding: "12px 16px", borderRadius: 16, border: `1px solid ${c.border}`, background: c.surface, marginBottom: 10, boxShadow: c.shadow }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <Avatar c={c} name={s.name} role={s.role} size={40} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 14.5, color: c.text }}>{s.name}{s.id === user.id ? " (you)" : ""}</div>
+                <div style={{ fontWeight: 700, fontSize: 14.5, color: c.text }}>{s.name}{s.id === user.id ? " " + tr("(you)") : ""}</div>
                 <div style={{ fontSize: 12.5, color: c.textSub, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.email}</div>
               </div>
-              <Badge c={c} label={roleMeta(s.role).label} color={c[roleMeta(s.role).accentKey]} />
+              <Badge c={c} label={tr(roleMeta(s.role).label)} color={c[roleMeta(s.role).accentKey]} />
               {canManage && s.role !== "owner" && (
                 <button onClick={() => setRemoveTarget(s)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textFaint }}><Trash2 size={16} /></button>
               )}
@@ -1735,7 +2120,7 @@ function StaffScreen({ c, staff, setStaff, user, restaurant, onPasswordChanged }
                   {revealed[s.id] ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
                 <button onClick={() => openReset(s)} style={{ background: "none", border: `1px solid ${c.border}`, borderRadius: 8, padding: "4px 10px", cursor: "pointer", color: c.textSub, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
-                  Change
+                  {tr("Change")}
                 </button>
               </div>
             )}
@@ -1746,22 +2131,22 @@ function StaffScreen({ c, staff, setStaff, user, restaurant, onPasswordChanged }
       {adding && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={() => setAdding(false)}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: c.surface, width: "100%", maxWidth: 520, margin: "0 auto", borderRadius: "24px 24px 0 0", padding: "22px 22px calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "88dvh", overflowY: "auto" }}>
-            <div style={{ fontWeight: 700, fontSize: 17, color: c.text, marginBottom: 4 }}>Add team member</div>
+            <div style={{ fontWeight: 700, fontSize: 17, color: c.text, marginBottom: 4 }}>{tr("Add team member")}</div>
             <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
-              <KeyRound size={13} /> We'll generate their email and password automatically.
+              <KeyRound size={13} /> {tr("We'll generate their email and password automatically.")}
             </div>
-            <TextInput c={c} label="Full name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="e.g. Jane Waiter" />
-            <TextInput c={c} label="Phone (optional)" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} placeholder="+1-555-0000" />
-            <div style={{ fontSize: 13, color: c.textSub, marginBottom: 8 }}>Role</div>
+            <TextInput c={c} label={tr("Full name")} value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder={tr("e.g. Jane Waiter")} />
+            <TextInput c={c} label={tr("Phone (optional)")} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} placeholder="+385-91-000-0000" />
+            <div style={{ fontSize: 13, color: c.textSub, marginBottom: 8 }}>{tr("Role")}</div>
             <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
               {["waiter", "chef"].map((r) => (
                 <button key={r} onClick={() => setForm({ ...form, role: r })} style={{
                   flex: 1, padding: "10px", borderRadius: 12, cursor: "pointer",
                   border: `1.5px solid ${form.role === r ? c.text : c.border}`, background: form.role === r ? c.surfaceAlt : c.surface, color: c.text, fontWeight: 600, fontSize: 13.5,
-                }}>{ROLE_META[r].label}</button>
+                }}>{tr(ROLE_META[r].label)}</button>
               ))}
             </div>
-            <PrimaryButton c={c} full disabled={!form.name.trim()} onClick={add}>Create account</PrimaryButton>
+            <PrimaryButton c={c} full disabled={!form.name.trim()} onClick={add}>{tr("Create account")}</PrimaryButton>
           </div>
         </div>
       )}
@@ -1769,20 +2154,20 @@ function StaffScreen({ c, staff, setStaff, user, restaurant, onPasswordChanged }
       {pwTarget && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={() => setPwTarget(null)}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: c.surface, width: "100%", maxWidth: 520, margin: "0 auto", borderRadius: "24px 24px 0 0", padding: "22px 22px calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "88dvh", overflowY: "auto" }}>
-            <div style={{ fontWeight: 700, fontSize: 17, color: c.text, marginBottom: 4 }}>Change password · {pwTarget.name}</div>
-            <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>Set a new password and share it with them. It replaces their old one immediately.</div>
-            <TextInput c={c} label="New password" value={pwValue} onChange={(v) => { setPwValue(v); setPwErr(""); }} error={pwErr} hint="They sign in with the restaurant name and this password." />
+            <div style={{ fontWeight: 700, fontSize: 17, color: c.text, marginBottom: 4 }}>{tr("Change password · ")}{pwTarget.name}</div>
+            <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>{tr("Set a new password and share it with them. It replaces their old one immediately.")}</div>
+            <TextInput c={c} label={tr("New password")} value={pwValue} onChange={(v) => { setPwValue(v); setPwErr(""); }} error={pwErr} hint={tr("They sign in with the restaurant name and this password.")} />
             <GhostButton c={c} full onClick={() => setPwValue(generatePassword())} style={{ marginBottom: 12 }}>
-              <KeyRound size={15} /> Generate a new one
+              <KeyRound size={15} /> {tr("Generate a new one")}
             </GhostButton>
-            <PrimaryButton c={c} full disabled={pwValue.trim().length < 6} onClick={saveReset}>Save password</PrimaryButton>
+            <PrimaryButton c={c} full disabled={pwValue.trim().length < 6} onClick={saveReset}>{tr("Save password")}</PrimaryButton>
           </div>
         </div>
       )}
       {justAdded && <CredentialsModal c={c} account={justAdded} restaurant={restaurant} onClose={() => setJustAdded(null)} />}
       {removeTarget && (
-        <ConfirmDialog c={c} title={`Remove ${removeTarget.name}?`} message="They'll lose access immediately. This can't be undone."
-          confirmLabel="Remove" onCancel={() => setRemoveTarget(null)} onConfirm={confirmRemove} />
+        <ConfirmDialog c={c} title={LANG === "hr" ? `Ukloniti ${removeTarget.name}?` : `Remove ${removeTarget.name}?`} message={tr("They'll lose access immediately. This can't be undone.")}
+          confirmLabel={tr("Remove")} onCancel={() => setRemoveTarget(null)} onConfirm={confirmRemove} />
       )}
     </div>
   );
@@ -1804,12 +2189,12 @@ function MoreScreen({ c, user, restaurant, setView, isDark, setIsDark, onSignOut
   ];
   return (
     <div style={{ padding: "0 20px 24px" }}>
-      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 18px" }}>More</div>
+      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 18px" }}>{tr("More")}</div>
       <SectionCard c={c} style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 14 }}>
         <Avatar c={c} name={user.name} role={user.role} size={46} />
         <div>
           <div style={{ fontWeight: 700, fontSize: 15.5, color: c.text }}>{user.name}</div>
-          <div style={{ fontSize: 13, color: c.textSub }}>{roleMeta(user.role).label} · {restaurant?.name}</div>
+          <div style={{ fontSize: 13, color: c.textSub }}>{tr(roleMeta(user.role).label)} · {restaurant?.name}</div>
         </div>
       </SectionCard>
       <SectionCard c={c} style={{ padding: 6, marginBottom: 16 }}>
@@ -1823,7 +2208,7 @@ function MoreScreen({ c, user, restaurant, setView, isDark, setIsDark, onSignOut
               <div style={{ width: 36, height: 36, borderRadius: 11, background: r.accent + "1A", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Icon size={16} color={r.accent} />
               </div>
-              <span style={{ flex: 1, fontWeight: 600, fontSize: 14.5, color: c.text }}>{r.label}</span>
+              <span style={{ flex: 1, fontWeight: 600, fontSize: 14.5, color: c.text }}>{tr(r.label)}</span>
               <ChevronRight size={16} color={c.textFaint} />
             </button>
           );
@@ -1832,23 +2217,23 @@ function MoreScreen({ c, user, restaurant, setView, isDark, setIsDark, onSignOut
       <SectionCard c={c} style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", padding: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {isDark ? <Moon size={18} color={c.text} /> : <Sun size={18} color={c.text} />}
-          <span style={{ fontWeight: 600, fontSize: 14.5, color: c.text }}>{isDark ? "Dark mode" : "Light mode"}</span>
+          <span style={{ fontWeight: 600, fontSize: 14.5, color: c.text }}>{isDark ? tr("Dark mode") : tr("Light mode")}</span>
         </div>
         <button onClick={() => setIsDark(!isDark)} style={{ width: 50, height: 30, borderRadius: 999, background: isDark ? c.green : c.border, border: "none", cursor: "pointer", position: "relative" }}>
           <span style={{ position: "absolute", top: 3, left: isDark ? 23 : 3, width: 24, height: 24, borderRadius: 999, background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
         </button>
       </SectionCard>
       <GhostButton c={c} full onClick={onSwitchWorkspace} style={{ marginBottom: 10 }}>
-        <Store size={16} /> Switch restaurant
+        <Store size={16} /> {tr("Switch restaurant")}
       </GhostButton>
       <GhostButton c={c} full onClick={onSignOut} style={{ color: c.rose, borderColor: c.rose + "44" }}>
-        <LogOut size={16} /> Sign out
+        <LogOut size={16} /> {tr("Sign out")}
       </GhostButton>
     </div>
   );
 }
 
-function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant, tables, setTables, accounts, setAccounts, onPasswordChanged }) {
+function SettingsScreen({ c, user, isDark, setIsDark, lang, setLang, restaurant, setRestaurant, tables, setTables, accounts, setAccounts, onPasswordChanged }) {
   const canManage = user.role === "owner";
   const [restName, setRestName] = useState(restaurant.name);
   const [savedRest, setSavedRest] = useState(false);
@@ -1858,7 +2243,7 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
   const [reviewErr, setReviewErr] = useState("");
   const saveReviewUrl = () => {
     const v = reviewUrl.trim();
-    if (v && !/^https?:\/\/\S+/i.test(v)) { setReviewErr("Enter a full link starting with https://"); return; }
+    if (v && !/^https?:\/\/\S+/i.test(v)) { setReviewErr(tr("Enter a full link starting with https://")); return; }
     setReviewErr("");
     setRestaurant({ ...restaurant, googleReviewUrl: v });
     setSavedReview(true);
@@ -1888,24 +2273,43 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
   const changePassword = () => {
     setPassErr(""); setPassMsg("");
     const me = accounts.find((a) => a.id === user.id);
-    if (!me || me.password !== curPass) { setPassErr("Current password is incorrect."); return; }
-    if (newPass.length < 6) { setPassErr("New password must be at least 6 characters."); return; }
-    if (newPass !== confirmPass) { setPassErr("New passwords don't match."); return; }
+    if (!me || me.password !== curPass) { setPassErr(tr("Current password is incorrect.")); return; }
+    if (newPass.length < 6) { setPassErr(tr("New password must be at least 6 characters.")); return; }
+    if (newPass !== confirmPass) { setPassErr(tr("New passwords don't match.")); return; }
     // Passwords are the login discriminator within a restaurant — keep them unique.
-    if (accounts.some((a) => a.id !== user.id && a.password === newPass)) { setPassErr("That password is already in use by another account. Choose a different one."); return; }
+    if (accounts.some((a) => a.id !== user.id && a.password === newPass)) { setPassErr(tr("That password is already in use by another account. Choose a different one.")); return; }
     setAccounts((prev) => prev.map((a) => a.id === user.id ? { ...a, password: newPass } : a));
     if (onPasswordChanged) onPasswordChanged(user.id, newPass);
     setCurPass(""); setNewPass(""); setConfirmPass("");
-    setPassMsg("Password updated.");
+    setPassMsg(tr("Password updated."));
     setTimeout(() => setPassMsg(""), 2000);
   };
 
   return (
     <div style={{ padding: "0 20px 24px" }}>
-      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 18px" }}>Settings</div>
+      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 18px" }}>{tr("Settings")}</div>
 
       <SectionCard c={c} style={{ marginBottom: 16 }}>
-        <div style={{ fontWeight: 700, color: c.text, marginBottom: 14 }}>Appearance</div>
+        <div style={{ fontWeight: 700, color: c.text, marginBottom: 14 }}>{tr("Language")}</div>
+        <div style={{ display: "flex", gap: 10 }}>
+          {[{ k: "hr", label: "Hrvatski" }, { k: "en", label: "English" }].map((opt) => {
+            const active = lang === opt.k;
+            return (
+              <button key={opt.k} onClick={() => setLang(opt.k)} style={{
+                flex: 1, padding: "14px", borderRadius: 16, cursor: "pointer",
+                border: `1.5px solid ${active ? c.text : c.border}`, background: active ? c.surfaceAlt : c.surface,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                fontSize: 14, fontWeight: 600, color: c.text,
+              }}>
+                {active && <Check size={15} />} {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </SectionCard>
+
+      <SectionCard c={c} style={{ marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, color: c.text, marginBottom: 14 }}>{tr("Appearance")}</div>
         <div style={{ display: "flex", gap: 10 }}>
           {[{ k: false, label: "Light", icon: Sun }, { k: true, label: "Dark", icon: Moon }].map((opt) => {
             const Icon = opt.icon; const active = isDark === opt.k;
@@ -1916,7 +2320,7 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
                 display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
               }}>
                 <Icon size={20} color={c.text} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: c.text }}>{opt.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: c.text }}>{tr(opt.label)}</span>
               </button>
             );
           })}
@@ -1925,48 +2329,48 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
 
       {canManage && (
         <SectionCard c={c} style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 700, color: c.text, marginBottom: 4 }}>Restaurant</div>
-          <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>Update your restaurant's name.</div>
+          <div style={{ fontWeight: 700, color: c.text, marginBottom: 4 }}>{tr("Restaurant")}</div>
+          <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>{tr("Update your restaurant's name.")}</div>
           <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
             <div style={{ flex: 1 }}>
               <input value={restName} onChange={(e) => setRestName(e.target.value)}
                 style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
             </div>
-            <PrimaryButton c={c} onClick={saveRestaurant} style={{ padding: "12px 18px" }}>{savedRest ? <Check size={16} /> : "Save"}</PrimaryButton>
+            <PrimaryButton c={c} onClick={saveRestaurant} style={{ padding: "12px 18px" }}>{savedRest ? <Check size={16} /> : tr("Save")}</PrimaryButton>
           </div>
         </SectionCard>
       )}
 
       {canManage && (
         <SectionCard c={c} style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 700, color: c.text, marginBottom: 4 }}>Google reviews</div>
-          <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>Set the link guests use to leave a review — used by Follow-ups.</div>
+          <div style={{ fontWeight: 700, color: c.text, marginBottom: 4 }}>{tr("Google reviews")}</div>
+          <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>{tr("Set the link guests use to leave a review — used by Follow-ups.")}</div>
           <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <input value={reviewUrl} onChange={(e) => { setReviewUrl(e.target.value); setReviewErr(""); }} placeholder="https://g.page/r/..." inputMode="url"
                 style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${reviewErr ? c.rose : c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
             </div>
-            <PrimaryButton c={c} onClick={saveReviewUrl} style={{ padding: "12px 18px" }}>{savedReview ? <Check size={16} /> : "Save"}</PrimaryButton>
+            <PrimaryButton c={c} onClick={saveReviewUrl} style={{ padding: "12px 18px" }}>{savedReview ? <Check size={16} /> : tr("Save")}</PrimaryButton>
           </div>
           {reviewErr
             ? <div style={{ fontSize: 12, color: c.rose, marginTop: 8 }}>{reviewErr}</div>
-            : <div style={{ fontSize: 12, color: c.textFaint, marginTop: 8 }}>Paste the review link from your Google Business Profile.</div>}
+            : <div style={{ fontSize: 12, color: c.textFaint, marginTop: 8 }}>{tr("Paste the review link from your Google Business Profile.")}</div>}
         </SectionCard>
       )}
 
       {canManage && (
         <SectionCard c={c} style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 700, color: c.text, marginBottom: 4 }}>Tables</div>
-          <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>Manage the tables staff can assign reservations to, grouped by section.</div>
+          <div style={{ fontWeight: 700, color: c.text, marginBottom: 4 }}>{tr("Tables")}</div>
+          <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>{tr("Manage the tables staff can assign reservations to, grouped by section.")}</div>
           <TableManager c={c} tables={tables} setTables={setTables} />
         </SectionCard>
       )}
 
       {canManage && (
         <SectionCard c={c} style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 700, color: c.text, marginBottom: 4 }}>Recovery code</div>
+          <div style={{ fontWeight: 700, color: c.text, marginBottom: 4 }}>{tr("Recovery code")}</div>
           <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>
-            If you ever forget your password, use this code on the sign-in screen ("Forgot password?") to set a new one. Keep it somewhere safe — anyone with it can reset the owner password.
+            {tr("If you ever forget your password, use this code on the sign-in screen (\"Forgot password?\") to set a new one. Keep it somewhere safe — anyone with it can reset the owner password.")}
           </div>
           {restaurant.recoveryCode ? (
             <>
@@ -1980,34 +2384,34 @@ function SettingsScreen({ c, user, isDark, setIsDark, restaurant, setRestaurant,
                 </button>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <GhostButton c={c} full onClick={copyCode}>{copiedCode ? <><Check size={15} /> Copied</> : <><Copy size={15} /> Copy</>}</GhostButton>
-                <GhostButton c={c} full onClick={() => { setRecoveryCode(generateRecoveryCode()); setRevealCode(true); }}>Regenerate</GhostButton>
+                <GhostButton c={c} full onClick={copyCode}>{copiedCode ? <><Check size={15} /> {tr("Copied")}</> : <><Copy size={15} /> {tr("Copy")}</>}</GhostButton>
+                <GhostButton c={c} full onClick={() => { setRecoveryCode(generateRecoveryCode()); setRevealCode(true); }}>{tr("Regenerate")}</GhostButton>
               </div>
             </>
           ) : (
             <PrimaryButton c={c} full onClick={() => { setRecoveryCode(generateRecoveryCode()); setRevealCode(true); }}>
-              <KeyRound size={15} /> Generate recovery code
+              <KeyRound size={15} /> {tr("Generate recovery code")}
             </PrimaryButton>
           )}
         </SectionCard>
       )}
 
       <SectionCard c={c} style={{ marginBottom: 16 }}>
-        <div style={{ fontWeight: 700, color: c.text, marginBottom: 4 }}>Change password</div>
-        <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>Update the password you use to sign in.</div>
-        <TextInput c={c} label="Current password" type="password" value={curPass} onChange={setCurPass} />
-        <TextInput c={c} label="New password" type="password" value={newPass} onChange={setNewPass} />
-        <TextInput c={c} label="Confirm new password" type="password" value={confirmPass} onChange={setConfirmPass} error={passErr} />
+        <div style={{ fontWeight: 700, color: c.text, marginBottom: 4 }}>{tr("Change password")}</div>
+        <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>{tr("Update the password you use to sign in.")}</div>
+        <TextInput c={c} label={tr("Current password")} type="password" value={curPass} onChange={setCurPass} />
+        <TextInput c={c} label={tr("New password")} type="password" value={newPass} onChange={setNewPass} />
+        <TextInput c={c} label={tr("Confirm new password")} type="password" value={confirmPass} onChange={setConfirmPass} error={passErr} />
         {passMsg && <div style={{ fontSize: 12.5, color: c.green, marginBottom: 12 }}>{passMsg}</div>}
-        <PrimaryButton c={c} full disabled={!curPass || !newPass || !confirmPass} onClick={changePassword}>Update password</PrimaryButton>
+        <PrimaryButton c={c} full disabled={!curPass || !newPass || !confirmPass} onClick={changePassword}>{tr("Update password")}</PrimaryButton>
       </SectionCard>
 
       <SectionCard c={c}>
-        <div style={{ fontWeight: 700, color: c.text, marginBottom: 10 }}>Account</div>
+        <div style={{ fontWeight: 700, color: c.text, marginBottom: 10 }}>{tr("Account")}</div>
         <div style={{ fontSize: 13.5, color: c.textSub, lineHeight: 1.9 }}>
-          <div>Restaurant: <b style={{ color: c.text }}>{restaurant.name}</b></div>
-          <div>Signed in as <b style={{ color: c.text }}>{user.name}</b></div>
-          <div>Role: {roleMeta(user.role).label}</div>
+          <div>{tr("Restaurant")}: <b style={{ color: c.text }}>{restaurant.name}</b></div>
+          <div>{tr("Signed in as")} <b style={{ color: c.text }}>{user.name}</b></div>
+          <div>{tr("Role")}: {tr(roleMeta(user.role).label)}</div>
         </div>
       </SectionCard>
     </div>
@@ -2032,12 +2436,19 @@ function FollowUpsScreen({ c, reservations, setReservations, restaurant, setView
 
   const firstName = (name) => (name || "").trim().split(/\s+/)[0] || (name || "");
   const shortDate = (d) => { const p = (d || "").split("-"); return p.length === 3 ? `${p[2]}.${p[1]}.` : (d || ""); };
-  const subjectFor = (r) => `Hvala na posjeti, ${firstName(r.name)}`;
-  const bodyFor = (r) =>
-    `Pozdrav ${firstName(r.name)},\n\n` +
-    `hvala što ste nas posjetili ${shortDate(r.date)}. Nadamo se da je bilo lijepo.\n\n` +
-    `Ako imate minutu, vaša recenzija nam puno znači:\n${reviewUrl}\n\n` +
-    `Srdačan pozdrav,\n${(restaurant && restaurant.name) || ""}`;
+  const restName = (restaurant && restaurant.name) || "";
+  const subjectFor = (r) => LANG === "hr"
+    ? `Hvala na posjeti, ${firstName(r.name)}`
+    : `Thanks for visiting, ${firstName(r.name)}`;
+  const bodyFor = (r) => LANG === "hr"
+    ? `Pozdrav ${firstName(r.name)},\n\n` +
+      `hvala što ste nas posjetili ${shortDate(r.date)}. Nadamo se da je bilo lijepo.\n\n` +
+      `Ako imate minutu, vaša recenzija nam puno znači:\n${reviewUrl}\n\n` +
+      `Srdačan pozdrav,\n${restName}`
+    : `Hello ${firstName(r.name)},\n\n` +
+      `thank you for visiting us on ${shortDate(r.date)}. We hope you had a great time.\n\n` +
+      `If you have a minute, your review means a lot to us:\n${reviewUrl}\n\n` +
+      `Warm regards,\n${restName}`;
 
   const openGuest = (r) => { setBodyText(bodyFor(r)); setCopied(false); setActive(r); };
   const copy = () => { copyToClipboard(bodyText).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {}); };
@@ -2054,19 +2465,19 @@ function FollowUpsScreen({ c, reservations, setReservations, restaurant, setView
 
   return (
     <div style={{ padding: "0 20px 24px" }}>
-      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 2px" }}>Follow-ups</div>
-      <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 16 }}>Invite guests to leave a Google review after their visit.</div>
+      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 2px" }}>{tr("Follow-ups")}</div>
+      <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 16 }}>{tr("Invite guests to leave a Google review after their visit.")}</div>
 
       {!reviewUrl && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, background: c.surfaceAlt, borderRadius: 14, padding: "12px 14px", marginBottom: 16 }}>
-          <div style={{ flex: 1, fontSize: 13, color: c.textSub }}>Add your Google review link so guests can leave a review.</div>
-          <GhostButton c={c} onClick={() => setView("settings")} style={{ padding: "8px 14px", flexShrink: 0 }}>Settings</GhostButton>
+          <div style={{ flex: 1, fontSize: 13, color: c.textSub }}>{tr("Add your Google review link so guests can leave a review.")}</div>
+          <GhostButton c={c} onClick={() => setView("settings")} style={{ padding: "8px 14px", flexShrink: 0 }}>{tr("Settings")}</GhostButton>
         </div>
       )}
 
       {list.length === 0 ? (
-        <EmptyState c={c} icon={Mail} title="No follow-ups yet"
-          message="Guests appear here once their reservation is marked completed, so you can invite them to leave a review." />
+        <EmptyState c={c} icon={Mail} title={tr("No follow-ups yet")}
+          message={tr("Guests appear here once their reservation is marked completed, so you can invite them to leave a review.")} />
       ) : (
         list.map((r) => (
           <button key={r.id} onClick={() => openGuest(r)} style={{
@@ -2087,18 +2498,18 @@ function FollowUpsScreen({ c, reservations, setReservations, restaurant, setView
       {active && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={() => setActive(null)}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: c.surface, width: "100%", maxWidth: 520, margin: "0 auto", borderRadius: "24px 24px 0 0", padding: "22px 22px calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "90dvh", overflowY: "auto", fontFamily: fontStack().body }}>
-            <div style={{ fontWeight: 700, fontSize: 17, color: c.text, marginBottom: 4 }}>Review request · {firstName(active.name)}</div>
+            <div style={{ fontWeight: 700, fontSize: 17, color: c.text, marginBottom: 4 }}>{tr("Review request · ")}{firstName(active.name)}</div>
             <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>{active.email}</div>
-            <div style={{ fontSize: 13, color: c.textSub, marginBottom: 6, fontWeight: 500 }}>Subject</div>
+            <div style={{ fontSize: 13, color: c.textSub, marginBottom: 6, fontWeight: 500 }}>{tr("Subject")}</div>
             <div style={{ background: c.surfaceAlt, borderRadius: 10, padding: "10px 12px", fontSize: 14, color: c.text, marginBottom: 14 }}>{subjectFor(active)}</div>
-            <div style={{ fontSize: 13, color: c.textSub, marginBottom: 6, fontWeight: 500 }}>Message</div>
+            <div style={{ fontSize: 13, color: c.textSub, marginBottom: 6, fontWeight: 500 }}>{tr("Message")}</div>
             <textarea value={bodyText} onChange={(e) => setBodyText(e.target.value)} rows={9}
               style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box", resize: "vertical", fontFamily: fontStack().body, outline: "none", lineHeight: 1.5 }} />
             <div style={{ display: "flex", gap: 8, margin: "14px 0 10px" }}>
-              <PrimaryButton c={c} full onClick={copy}>{copied ? <><Check size={16} /> Copied</> : <><Copy size={16} /> Copy</>}</PrimaryButton>
-              <GhostButton c={c} full onClick={openMail}><Mail size={16} /> Open in mail</GhostButton>
+              <PrimaryButton c={c} full onClick={copy}>{copied ? <><Check size={16} /> {tr("Copied")}</> : <><Copy size={16} /> {tr("Copy")}</>}</PrimaryButton>
+              <GhostButton c={c} full onClick={openMail}><Mail size={16} /> {tr("Open in mail")}</GhostButton>
             </div>
-            <PrimaryButton c={c} full onClick={markSent}><Check size={16} /> Mark as sent</PrimaryButton>
+            <PrimaryButton c={c} full onClick={markSent}><Check size={16} /> {tr("Mark as sent")}</PrimaryButton>
           </div>
         </div>
       )}
@@ -2359,17 +2770,17 @@ function ImportItemsModal({ c, onClose, onAdd }) {
     try {
       let extracted = "";
       if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
-        setStatus("Čitam PDF…");
+        setStatus(tr("Reading PDF…"));
         extracted = await pdfTextFromFile(file);
       } else {
-        setStatus("Čitam sliku…");
+        setStatus(tr("Reading image…"));
         extracted = await ocrImageFile(file, (p) => setProgress(p));
       }
       const cleaned = extractMenuItems(extracted).join("\n");
       setText((prev) => (prev.trim() ? prev + "\n" : "") + cleaned);
-      setStatus(cleaned ? "" : "Nije pronađen tekst — upiši artikle ručno ispod.");
+      setStatus(cleaned ? "" : tr("No text found — type items manually below."));
     } catch (e) {
-      setStatus("Automatsko čitanje nije uspjelo — zalijepi ili upiši artikle ručno ispod.");
+      setStatus(tr("Automatic reading failed — paste or type items manually below."));
     } finally {
       setBusy(false); setProgress(0);
     }
@@ -2383,9 +2794,9 @@ function ImportItemsModal({ c, onClose, onAdd }) {
         background: c.surface, width: "100%", maxWidth: 520, margin: "0 auto", borderRadius: "24px 24px 0 0",
         padding: "22px 22px calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "90dvh", overflowY: "auto", fontFamily: fontStack().body,
       }}>
-        <div style={{ fontWeight: 700, fontSize: 17, color: c.text, marginBottom: 4 }}>Import items</div>
+        <div style={{ fontWeight: 700, fontSize: 17, color: c.text, marginBottom: 4 }}>{tr("Import items")}</div>
         <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>
-          Snap a photo of the menu or pick a PDF — we'll read the text. Then review the list before adding.
+          {tr("Snap a photo of the menu or pick a PDF — we'll read the text. Then review the list before adding.")}
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
@@ -2394,7 +2805,7 @@ function ImportItemsModal({ c, onClose, onAdd }) {
             padding: "16px 8px", borderRadius: 14, border: `1.5px dashed ${c.border}`, background: c.surfaceAlt, cursor: busy ? "default" : "pointer",
           }}>
             <ImageIcon size={20} color={c.textSub} />
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: c.text }}>Photo</span>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: c.text }}>{tr("Photo")}</span>
             <input type="file" accept="image/*" capture="environment" disabled={busy} style={{ display: "none" }}
               onChange={(e) => handleFile(e.target.files?.[0])} />
           </label>
@@ -2403,7 +2814,7 @@ function ImportItemsModal({ c, onClose, onAdd }) {
             padding: "16px 8px", borderRadius: 14, border: `1.5px dashed ${c.border}`, background: c.surfaceAlt, cursor: busy ? "default" : "pointer",
           }}>
             <FileText size={20} color={c.textSub} />
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: c.text }}>PDF</span>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: c.text }}>{tr("PDF")}</span>
             <input type="file" accept="application/pdf,.pdf" disabled={busy} style={{ display: "none" }}
               onChange={(e) => handleFile(e.target.files?.[0])} />
           </label>
@@ -2411,25 +2822,25 @@ function ImportItemsModal({ c, onClose, onAdd }) {
 
         {busy && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, color: c.textSub, fontSize: 13 }}>
-            <Loader2 size={15} className="spin" /> {status || "Reading…"}{progress > 0 ? ` ${Math.round(progress * 100)}%` : ""}
+            <Loader2 size={15} className="spin" /> {status || tr("Reading…")}{progress > 0 ? ` ${Math.round(progress * 100)}%` : ""}
           </div>
         )}
         {!busy && status && <div style={{ fontSize: 12.5, color: c.textSub, marginBottom: 12 }}>{status}</div>}
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-          <span style={{ fontSize: 13, color: c.textSub, fontWeight: 500 }}>Items — one per line</span>
+          <span style={{ fontSize: 13, color: c.textSub, fontWeight: 500 }}>{tr("Items — one per line")}</span>
           {text.trim() && (
             <button onClick={() => setText(extractMenuItems(text).join("\n"))} style={{ background: "none", border: `1px solid ${c.border}`, borderRadius: 8, padding: "4px 10px", cursor: "pointer", color: c.textSub, fontSize: 12, fontWeight: 600 }}>
-              Clean up
+              {tr("Clean up")}
             </button>
           )}
         </div>
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7} placeholder={"Coca-Cola\nHobotnica\nMaslinovo ulje"}
           style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box", resize: "vertical", fontFamily: fontStack().body, outline: "none" }} />
-        <div style={{ fontSize: 11.5, color: c.textFaint, marginTop: 5 }}>Tip: paste a menu and tap "Clean up" to drop prices, headers and descriptions, and shorten dish names (e.g. "Hobotnica na žaru" → "Hobotnica").</div>
+        <div style={{ fontSize: 11.5, color: c.textFaint, marginTop: 5 }}>{tr("Tip: paste a menu and tap \"Clean up\" to drop prices, headers and descriptions, and shorten dish names (e.g. \"Hobotnica na žaru\" → \"Hobotnica\").")}</div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "12px 0 16px" }}>
-          <span style={{ fontSize: 13, color: c.textSub }}>Default unit</span>
+          <span style={{ fontSize: 13, color: c.textSub }}>{tr("Default unit")}</span>
           <div style={{ display: "flex", gap: 6 }}>
             {ORDER_UNITS.map((u) => (
               <button key={u} onClick={() => setDefaultUnit(u)} style={{
@@ -2441,7 +2852,7 @@ function ImportItemsModal({ c, onClose, onAdd }) {
         </div>
 
         <PrimaryButton c={c} full disabled={parsed.length === 0} onClick={() => { onAdd(parsed, defaultUnit); onClose(); }}>
-          <Plus size={16} /> Add {parsed.length > 0 ? parsed.length : ""} item{parsed.length === 1 ? "" : "s"}
+          <Plus size={16} /> {tr("Add")} {parsed.length > 0 ? parsed.length : ""} {plural(parsed.length, ["item", "items"], ["artikl", "artikla", "artikala"])}
         </PrimaryButton>
         <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
       </div>
@@ -2513,46 +2924,48 @@ function OrderingScreen({ c, products, setProducts, orderDraft, setOrderDraft, r
 
   const emailOrder = () => {
     if (!orderRows.length) return;
-    const body =
-      "Poštovani,\n\nMolim isporuku sljedeće robe:\n\n" +
-      orderRows.map((r) => `- ${r.name}: ${r.qty} ${r.unit}`).join("\n") +
-      `\n\nHvala,\n${restaurant?.name || ""}`;
-    window.location.href = `mailto:?subject=${encodeURIComponent(`Narudžba robe — ${restaurant?.name || ""} (${dateStr})`)}&body=${encodeURIComponent(body)}`;
+    const rows = orderRows.map((r) => `- ${r.name}: ${r.qty} ${r.unit}`).join("\n");
+    const name = restaurant?.name || "";
+    const body = LANG === "hr"
+      ? `Poštovani,\n\nMolim isporuku sljedeće robe:\n\n${rows}\n\nHvala,\n${name}`
+      : `Dear supplier,\n\nPlease deliver the following goods:\n\n${rows}\n\nThank you,\n${name}`;
+    const subject = LANG === "hr" ? `Narudžba robe — ${name} (${dateStr})` : `Supply order — ${name} (${dateStr})`;
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
   const clearOrder = () => setOrderDraft({});
 
   return (
     <div style={{ padding: "0 20px 24px" }}>
-      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 2px" }}>Order supplies</div>
-      <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 16 }}>Build a supplier order and export it as a table.</div>
+      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 2px" }}>{tr("Order supplies")}</div>
+      <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 16 }}>{tr("Build a supplier order and export it as a table.")}</div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <GhostButton c={c} onClick={() => setImporting(true)} style={{ flex: 1, padding: "12px 10px" }}>
-          <Upload size={16} /> Import
+          <Upload size={16} /> {tr("Import")}
         </GhostButton>
         <PrimaryButton c={c} onClick={exportCsv} disabled={orderCount === 0} style={{ flex: 1, padding: "13px 10px" }}>
-          <Download size={16} /> Export CSV
+          <Download size={16} /> {tr("Export CSV")}
         </PrimaryButton>
       </div>
 
       {products.length > 0 && (
         selectMode ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: c.surfaceAlt, borderRadius: 14, padding: "10px 14px", marginBottom: 16 }}>
-            <span style={{ fontSize: 13.5, color: c.text, fontWeight: 600 }}>{selected.size} selected</span>
+            <span style={{ fontSize: 13.5, color: c.text, fontWeight: 600 }}>{selected.size} {tr("selected")}</span>
             <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
               <button onClick={selected.size === products.length ? () => setSelected(new Set()) : selectAll} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600 }}>
-                {selected.size === products.length ? "None" : "All"}
+                {selected.size === products.length ? tr("None") : tr("All")}
               </button>
               <button onClick={() => selected.size && setBulkConfirm(true)} disabled={!selected.size} style={{ background: "none", border: "none", cursor: selected.size ? "pointer" : "default", color: selected.size ? c.rose : c.textFaint, fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
-                <Trash2 size={14} /> Delete
+                <Trash2 size={14} /> {tr("Delete")}
               </button>
-              <button onClick={exitSelect} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600 }}>Cancel</button>
+              <button onClick={exitSelect} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600 }}>{tr("Cancel")}</button>
             </div>
           </div>
         ) : (
           <button onClick={() => setSelectMode(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600, marginBottom: 12, padding: 0 }}>
-            <CheckCircle2 size={14} /> Select items to delete
+            <CheckCircle2 size={14} /> {tr("Select items to delete")}
           </button>
         )
       )}
@@ -2560,13 +2973,13 @@ function OrderingScreen({ c, products, setProducts, orderDraft, setOrderDraft, r
       {orderCount > 0 && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: c.surfaceAlt, borderRadius: 14, padding: "12px 14px", marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: c.text, fontWeight: 600 }}>
-            <ShoppingCart size={15} color={c.textSub} /> {orderCount} item{orderCount === 1 ? "" : "s"} in order
+            <ShoppingCart size={15} color={c.textSub} /> {orderCount} {plural(orderCount, ["item", "items"], ["artikl", "artikla", "artikala"])} {tr("in order")}
           </div>
           <div style={{ display: "flex", gap: 14 }}>
             <button onClick={emailOrder} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-              <Mail size={14} /> Email
+              <Mail size={14} /> {tr("Email")}
             </button>
-            <button onClick={clearOrder} style={{ background: "none", border: "none", cursor: "pointer", color: c.rose, fontSize: 12.5, fontWeight: 600 }}>Clear</button>
+            <button onClick={clearOrder} style={{ background: "none", border: "none", cursor: "pointer", color: c.rose, fontSize: 12.5, fontWeight: 600 }}>{tr("Clear")}</button>
           </div>
         </div>
       )}
@@ -2574,7 +2987,7 @@ function OrderingScreen({ c, products, setProducts, orderDraft, setOrderDraft, r
       {/* Quick manual add */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addManual()}
-          placeholder="Add an item (e.g. Coca-Cola)"
+          placeholder={tr("Add an item (e.g. Coca-Cola)")}
           style={{ flex: 1, minWidth: 0, padding: "12px 14px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box", outline: "none" }} />
         <select value={newUnit} onChange={(e) => setNewUnit(e.target.value)}
           style={{ padding: "12px 10px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }}>
@@ -2586,9 +2999,9 @@ function OrderingScreen({ c, products, setProducts, orderDraft, setOrderDraft, r
       </div>
 
       {products.length === 0 ? (
-        <EmptyState c={c} icon={ShoppingCart} title="No items yet"
-          message="Import your goods from a menu photo or PDF, or add them one by one above."
-          actionLabel="Import from photo / PDF" onAction={() => setImporting(true)} />
+        <EmptyState c={c} icon={ShoppingCart} title={tr("No items yet")}
+          message={tr("Import your goods from a menu photo or PDF, or add them one by one above.")}
+          actionLabel={tr("Import from photo / PDF")} onAction={() => setImporting(true)} />
       ) : (
         products.map((p) => {
           const qty = Number(orderDraft[p.id]) || 0;
@@ -2635,9 +3048,9 @@ function OrderingScreen({ c, products, setProducts, orderDraft, setOrderDraft, r
 
       {importing && <ImportItemsModal c={c} onClose={() => setImporting(false)} onAdd={addMany} />}
       {bulkConfirm && (
-        <ConfirmDialog c={c} title={`Remove ${selected.size} item${selected.size === 1 ? "" : "s"}?`}
-          message="The selected items will be removed from your catalog and any current order."
-          confirmLabel="Remove" onCancel={() => setBulkConfirm(false)} onConfirm={deleteSelected} />
+        <ConfirmDialog c={c} title={`${LANG === "hr" ? "Ukloniti" : "Remove"} ${selected.size} ${plural(selected.size, ["item", "items"], ["artikl", "artikla", "artikala"])}?`}
+          message={tr("The selected items will be removed from your catalog and any current order.")}
+          confirmLabel={tr("Remove")} onCancel={() => setBulkConfirm(false)} onConfirm={deleteSelected} />
       )}
     </div>
   );
@@ -2647,8 +3060,14 @@ function OrderingScreen({ c, products, setProducts, orderDraft, setOrderDraft, r
 /*  Configuration screen (shown when Supabase is not set up)           */
 /* ------------------------------------------------------------------ */
 
-function ConfigScreen({ c, isDark, setIsDark }) {
-  const steps = [
+function ConfigScreen({ c, isDark, setIsDark, lang, setLang }) {
+  const steps = LANG === "hr" ? [
+    "Izradite besplatan projekt na supabase.com.",
+    "Otvorite SQL uređivač i pokrenite skriptu iz supabase/schema.sql u ovom repozitoriju.",
+    "U Settings → API kopirajte Project URL i javni anon ključ.",
+    "Kopirajte .env.example u .env i zalijepite obje vrijednosti.",
+    "Ponovno pokrenite dev server (npm run dev).",
+  ] : [
     "Create a free project at supabase.com.",
     "Open the SQL editor and run the script in supabase/schema.sql from this repo.",
     "In Settings → API, copy your Project URL and the public anon key.",
@@ -2657,7 +3076,8 @@ function ConfigScreen({ c, isDark, setIsDark }) {
   ];
   return (
     <div style={{ minHeight: "100dvh", background: c.bg, display: "flex", flexDirection: "column", fontFamily: fontStack().body }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", padding: "calc(18px + env(safe-area-inset-top, 0px)) 20px 18px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "calc(18px + env(safe-area-inset-top, 0px)) 20px 18px" }}>
+        <LangToggle c={c} lang={lang} setLang={setLang} />
         <IconBtn c={c} onClick={() => setIsDark(!isDark)}>{isDark ? <Sun size={17} /> : <Moon size={17} />}</IconBtn>
       </div>
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 20px 40px" }}>
@@ -2666,12 +3086,12 @@ function ConfigScreen({ c, isDark, setIsDark }) {
             <div style={{ margin: "0 auto 6px", width: 130 }}>
               <OrdioraLogo c={c} size={130} />
             </div>
-            <div style={{ color: c.textSub, marginTop: 2, fontSize: 14.5 }}>Connect your Supabase backend to get started.</div>
+            <div style={{ color: c.textSub, marginTop: 2, fontSize: 14.5 }}>{tr("Connect your Supabase backend to get started.")}</div>
           </div>
           <SectionCard c={c}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
               <KeyRound size={18} color={c.textSub} />
-              <span style={{ fontWeight: 700, fontSize: 15, color: c.text }}>Set up in 5 steps</span>
+              <span style={{ fontWeight: 700, fontSize: 15, color: c.text }}>{tr("Set up in 5 steps")}</span>
             </div>
             {steps.map((s, i) => (
               <div key={i} style={{ display: "flex", gap: 12, padding: "9px 0", borderTop: i ? `1px solid ${c.border}` : "none" }}>
@@ -2684,7 +3104,7 @@ function ConfigScreen({ c, isDark, setIsDark }) {
             ))}
           </SectionCard>
           <div style={{ fontSize: 12, color: c.textFaint, textAlign: "center", marginTop: 16, lineHeight: 1.6 }}>
-            Full instructions are in the project README. Use only the public anon key here — never the service_role key.
+            {tr("Full instructions are in the project README. Use only the public anon key here — never the service_role key.")}
           </div>
         </div>
       </div>
@@ -2698,6 +3118,7 @@ function ConfigScreen({ c, isDark, setIsDark }) {
 
 export default function App() {
   const [isDark, setIsDark] = useState(true);
+  const [lang, setLang] = useState("hr"); // "hr" | "en" — device-local UI language
   const [loaded, setLoaded] = useState(false);
   const [user, setUser] = useState(null);
   const [view, setView] = useState("dashboard");
@@ -2765,13 +3186,15 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      const [ws, reg, themePref] = await Promise.all([
+      const [ws, reg, themePref, langPref] = await Promise.all([
         loadKey("restaurantos:workspace", null, false),
         loadKey("restaurantos:registry", [], true),
         loadKey("restaurantos:theme", null, false),
+        loadKey("restaurantos:lang", null, false),
       ]);
       setRegistry(reg);
       if (themePref) setIsDark(themePref.isDark);
+      if (langPref === "hr" || langPref === "en") { setLang(langPref); LANG = langPref; }
       if (ws && ws.slug) {
         await loadWorkspaceData(ws.slug);
         setWorkspace(ws);
@@ -2813,7 +3236,11 @@ export default function App() {
   useEffect(() => { if (loaded && workspace && products !== lastLoaded.current.products) saveKey(`restaurantos:${workspace.slug}:products`, products, true); }, [products, loaded, workspace]);
   useEffect(() => { if (loaded && workspace && orderDraft !== lastLoaded.current.orderDraft) saveKey(`restaurantos:${workspace.slug}:orderDraft`, orderDraft, true); }, [orderDraft, loaded, workspace]);
   useEffect(() => { if (loaded) saveKey("restaurantos:theme", { isDark }, false); }, [isDark, loaded]);
+  useEffect(() => { if (loaded) saveKey("restaurantos:lang", lang, false); }, [lang, loaded]);
 
+  // Publish the chosen language to the module-level translator so every child
+  // rendered synchronously below (and any handler that fires afterwards) reads it.
+  LANG = lang;
   const c = PALETTE[isDark ? "dark" : "light"];
 
   const notify = (type, text) => {
@@ -2877,15 +3304,15 @@ export default function App() {
   const recoverOwnerPassword = async (name, code, newPassword) => {
     const target = (name || "").trim().toLowerCase();
     const entry = registry.find((r) => (r.name || "").trim().toLowerCase() === target);
-    if (!entry) return { ok: false, error: "No restaurant found with that name." };
+    if (!entry) return { ok: false, error: tr("No restaurant found with that name.") };
     const rest = await loadKey(`restaurantos:${entry.slug}:restaurant`, null, true);
-    if (!rest || !rest.recoveryCode) return { ok: false, error: "This restaurant has no recovery code set." };
-    if (normalizeCode(rest.recoveryCode) !== normalizeCode(code)) return { ok: false, error: "Incorrect recovery code." };
-    if ((newPassword || "").length < 6) return { ok: false, error: "New password must be at least 6 characters." };
+    if (!rest || !rest.recoveryCode) return { ok: false, error: tr("This restaurant has no recovery code set.") };
+    if (normalizeCode(rest.recoveryCode) !== normalizeCode(code)) return { ok: false, error: tr("Incorrect recovery code.") };
+    if ((newPassword || "").length < 6) return { ok: false, error: tr("New password must be at least 6 characters.") };
     const accs = await loadKey(`restaurantos:${entry.slug}:accounts`, [], true);
     const idx = accs.findIndex((a) => a.role === "owner");
-    if (idx === -1) return { ok: false, error: "No owner account found." };
-    if (accs.some((a, i) => i !== idx && a.password === newPassword)) return { ok: false, error: "That password is already in use by a staff account. Choose a different one." };
+    if (idx === -1) return { ok: false, error: tr("No owner account found.") };
+    if (accs.some((a, i) => i !== idx && a.password === newPassword)) return { ok: false, error: tr("That password is already in use by a staff account. Choose a different one.") };
     const nextAccs = accs.map((a, i) => i === idx ? { ...a, password: newPassword } : a);
     await saveKey(`restaurantos:${entry.slug}:accounts`, nextAccs, true);
     return { ok: true };
@@ -2937,7 +3364,7 @@ export default function App() {
 
   const createReservation = (r) => {
     setReservations((prev) => [...prev, r]);
-    notify("reservation", `New reservation: ${r.name} · ${r.date} at ${r.time} (${r.table})`);
+    notify("reservation", `${tr("New reservation:")} ${r.name} · ${r.date} ${tr("at")} ${r.time} (${r.table})`);
   };
   const updateReservation = (id, payload) => {
     setReservations((prev) => prev.map((r) => r.id === id ? { ...r, ...payload } : r));
@@ -2956,7 +3383,7 @@ export default function App() {
   };
 
   if (!isSupabaseConfigured) {
-    return <ConfigScreen c={c} isDark={isDark} setIsDark={setIsDark} />;
+    return <ConfigScreen c={c} isDark={isDark} setIsDark={setIsDark} lang={lang} setLang={setLang} />;
   }
 
   if (!loaded) {
@@ -2970,13 +3397,13 @@ export default function App() {
 
   if (creatingNew) {
     return (
-      <SetupWizard c={c} isDark={isDark} setIsDark={setIsDark} onComplete={completeSetup}
+      <SetupWizard c={c} isDark={isDark} setIsDark={setIsDark} lang={lang} setLang={setLang} onComplete={completeSetup}
         onCancel={() => setCreatingNew(false)} />
     );
   }
 
   if (!user) {
-    return <LoginScreen c={c} isDark={isDark} setIsDark={setIsDark} onLogin={loginWithNameAndPassword} onRecover={recoverOwnerPassword} onCreateNew={() => setCreatingNew(true)} />;
+    return <LoginScreen c={c} isDark={isDark} setIsDark={setIsDark} lang={lang} setLang={setLang} onLogin={loginWithNameAndPassword} onRecover={recoverOwnerPassword} onCreateNew={() => setCreatingNew(true)} />;
   }
 
   // Signed in but the restaurant record didn't load (e.g. a transient read
@@ -2984,10 +3411,10 @@ export default function App() {
   if (!restaurant) {
     return (
       <div style={{ minHeight: "100dvh", background: c.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, fontFamily: fontStack().body }}>
-        <div style={{ color: c.textSub, fontSize: 14.5, textAlign: "center", maxWidth: 300, lineHeight: 1.5 }}>Couldn't load this restaurant's data. Check your connection and try again.</div>
+        <div style={{ color: c.textSub, fontSize: 14.5, textAlign: "center", maxWidth: 300, lineHeight: 1.5 }}>{tr("Couldn't load this restaurant's data. Check your connection and try again.")}</div>
         <div style={{ display: "flex", gap: 10 }}>
-          <PrimaryButton c={c} onClick={() => window.location.reload()}>Retry</PrimaryButton>
-          <GhostButton c={c} onClick={signOut}>Sign out</GhostButton>
+          <PrimaryButton c={c} onClick={() => window.location.reload()}>{tr("Retry")}</PrimaryButton>
+          <GhostButton c={c} onClick={signOut}>{tr("Sign out")}</GhostButton>
         </div>
       </div>
     );
@@ -3021,7 +3448,7 @@ export default function App() {
       `}</style>
 
       <div style={{ maxWidth: 520, margin: "0 auto", width: "100%", flex: 1, display: "flex", flexDirection: "column" }}>
-        <TopBar c={c} title={titleMap[view]} isDark={isDark} setIsDark={setIsDark}
+        <TopBar c={c} title={tr(titleMap[view])} isDark={isDark} setIsDark={setIsDark}
           notifications={notifications} notifOpen={notifOpen} unreadCount={unreadCount} onOpenNotifications={toggleNotifications} />
         <div style={{ flex: 1 }}>
           {view === "dashboard" && <DashboardScreen c={c} user={user} reservations={reservations} shifts={shifts} setView={setView} openNewReservation={() => setResModal("new")} canCreate={canCreateReservation} now={now} />}
@@ -3031,7 +3458,7 @@ export default function App() {
           {view === "analytics" && <AnalyticsScreen c={c} reservations={reservations} shifts={shifts} staff={accounts} user={user} />}
           {view === "staff" && <StaffScreen c={c} staff={accounts} setStaff={setAccounts} user={user} restaurant={restaurant} onPasswordChanged={onAccountPasswordChanged} />}
           {view === "more" && <MoreScreen c={c} user={user} restaurant={restaurant} setView={setView} isDark={isDark} setIsDark={setIsDark} onSignOut={signOut} onSwitchWorkspace={switchWorkspace} />}
-          {view === "settings" && <SettingsScreen c={c} user={user} isDark={isDark} setIsDark={setIsDark} restaurant={restaurant} setRestaurant={updateRestaurant} tables={tables} setTables={setTables} accounts={accounts} setAccounts={setAccounts} onPasswordChanged={onAccountPasswordChanged} />}
+          {view === "settings" && <SettingsScreen c={c} user={user} isDark={isDark} setIsDark={setIsDark} lang={lang} setLang={setLang} restaurant={restaurant} setRestaurant={updateRestaurant} tables={tables} setTables={setTables} accounts={accounts} setAccounts={setAccounts} onPasswordChanged={onAccountPasswordChanged} />}
           {view === "orders" && <OrderingScreen c={c} products={products} setProducts={setProducts} orderDraft={orderDraft} setOrderDraft={setOrderDraft} restaurant={restaurant} />}
           {view === "followups" && (user.role === "owner" || user.role === "waiter") && <FollowUpsScreen c={c} reservations={reservations} setReservations={setReservations} restaurant={restaurant} setView={setView} />}
         </div>
