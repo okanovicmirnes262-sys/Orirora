@@ -549,6 +549,17 @@ function generatePassword() {
   return out;
 }
 
+/* Login resolves an account by password alone, so passwords must be unique
+   within a restaurant. Generate one that no existing account already uses. */
+function generateUniquePassword(accounts) {
+  const taken = new Set((accounts || []).map((a) => a.password));
+  for (let i = 0; i < 50; i++) {
+    const p = generatePassword();
+    if (!taken.has(p)) return p;
+  }
+  return generatePassword();
+}
+
 /* A restaurant-level recovery code the owner saves to reset their own password
    if it's forgotten (no email server, so this is the fallback). Grouped for
    readability; compared without the dash. */
@@ -875,7 +886,7 @@ function ConfirmDialog({ c, title, message, confirmLabel, danger = true, onConfi
 /*  Top bar + notifications + bottom nav                              */
 /* ------------------------------------------------------------------ */
 
-function NotificationsPanel({ c, notifications, onClose }) {
+function NotificationsPanel({ c, notifications, onClose, seenAt = 0 }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 65 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{
@@ -898,7 +909,7 @@ function NotificationsPanel({ c, notifications, onClose }) {
                   <div style={{ fontSize: 13, color: c.text, lineHeight: 1.4 }}>{n.text}</div>
                   <div style={{ fontSize: 11, color: c.textFaint, marginTop: 2 }}>{relativeTime(n.time)}</div>
                 </div>
-                {!n.read && <span style={{ width: 7, height: 7, borderRadius: 99, background: c.rose, marginTop: 6, flexShrink: 0 }} />}
+                {(n.time || 0) > seenAt && <span style={{ width: 7, height: 7, borderRadius: 99, background: c.rose, marginTop: 6, flexShrink: 0 }} />}
               </div>
             );
           })
@@ -908,7 +919,7 @@ function NotificationsPanel({ c, notifications, onClose }) {
   );
 }
 
-function TopBar({ title, c, isDark, setIsDark, notifications, onOpenNotifications, notifOpen, unreadCount }) {
+function TopBar({ title, c, isDark, setIsDark, notifications, onOpenNotifications, notifOpen, unreadCount, notifSeenAt }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "calc(16px + env(safe-area-inset-top, 0px)) 20px 10px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
@@ -919,7 +930,7 @@ function TopBar({ title, c, isDark, setIsDark, notifications, onOpenNotification
         <IconBtn c={c} onClick={onOpenNotifications} badge={unreadCount}><Bell size={17} /></IconBtn>
         <IconBtn c={c} onClick={() => setIsDark(!isDark)}>{isDark ? <Sun size={17} /> : <Moon size={17} />}</IconBtn>
       </div>
-      {notifOpen && <NotificationsPanel c={c} notifications={notifications} onClose={() => onOpenNotifications()} />}
+      {notifOpen && <NotificationsPanel c={c} notifications={notifications} onClose={() => onOpenNotifications()} seenAt={notifSeenAt} />}
     </div>
   );
 }
@@ -1454,8 +1465,8 @@ function DashboardScreen({ c, user, reservations, shifts, setView, openNewReserv
             <div style={{ width: 44, height: 44, borderRadius: 12, background: c.surfaceAlt, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: c.text }}>
               {(r.time || "").split(":")[0]}<span style={{ fontSize: 9, color: c.textFaint, fontWeight: 500 }}>:{(r.time || "").split(":")[1]}</span>
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 14.5, color: c.text }}>{r.name}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: 14.5, color: c.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
               <div style={{ fontSize: 12.5, color: c.textSub }}>{r.guests} {guestWord(r.guests)}</div>
             </div>
             <Badge c={c} label={tr(r.status)} color={statusColor(c, r.status)} />
@@ -1586,9 +1597,9 @@ function ReservationsScreen({ c, reservations, setReservations, user, openNewRes
                   <div style={{ fontSize: 16, fontWeight: 700, color: c.text }}>{(r.time || "").split(":")[0]}</div>
                   <div style={{ fontSize: 11, color: c.textFaint }}>:{(r.time || "").split(":")[1]}</div>
                 </div>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontWeight: 700, fontSize: 15, color: c.text }}>{r.name}</span>
+                    <span style={{ fontWeight: 700, fontSize: 15, color: c.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{r.name}</span>
                     <Badge c={c} label={tr(r.status)} color={statusColor(c, r.status)} />
                   </div>
                   <div style={{ fontSize: 12.5, color: c.textSub, marginTop: 3, display: "flex", gap: 10 }}>
@@ -1909,7 +1920,7 @@ function ChatScreen({ c, chat, setChat, staff, user, notify }) {
   };
 
   return (
-    <div style={{ padding: "0 20px 0", display: "flex", flexDirection: "column", minHeight: 0, height: bp === "desktop" ? "calc(100dvh - 80px)" : "calc(100dvh - 210px)" }}>
+    <div style={{ padding: "0 20px 0", display: "flex", flexDirection: "column", minHeight: 0, height: bp === "desktop" ? "calc(100dvh - 80px)" : "calc(100dvh - 120px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))" }}>
       <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 14px" }}>{tr("Chat")}</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         {channels.map((ch) => {
@@ -2188,7 +2199,7 @@ function StaffScreen({ c, staff, setStaff, user, restaurant, onPasswordChanged }
     const account = {
       id: uid(), name: form.name.trim(), role: form.role, phone: form.phone.trim(),
       email: generateEmail(form.name, restaurant.slug, staff),
-      password: generatePassword(),
+      password: generateUniquePassword(staff),
     };
     setStaff((prev) => [...prev, account]);
     setForm({ name: "", role: "waiter", phone: "" });
@@ -2683,7 +2694,14 @@ function collapseLetterSpacing(line) {
   if (tokens.length < 4) return line;
   const singles = tokens.filter((t) => t.length === 1 && /\p{L}/u.test(t)).length;
   if (singles / tokens.length <= 0.6) return line;
-  return line.replace(/(?<=\p{L})\s+(?=\p{L}(?:\s|$))/gu, "");
+  // Built at call time (not as a literal) so engines lacking lookbehind
+  // (old iOS Safari) throw here — and get caught — instead of failing to parse
+  // the whole bundle at load. On those engines this one cleanup is skipped.
+  try {
+    return line.replace(new RegExp("(?<=\\p{L})\\s+(?=\\p{L}(?:\\s|$))", "gu"), "");
+  } catch (e) {
+    return line;
+  }
 }
 
 // Strip a leading menu-category header from a line ("GLAVNA JELA Filet\u2026" \u2192 "Filet\u2026").
@@ -3259,6 +3277,7 @@ export default function App() {
   const [products, setProducts] = useState([]);     // supplies catalog
   const [orderDraft, setOrderDraft] = useState({});  // { productId: quantity }
   const [now, setNow] = useState(() => Date.now());  // minute tick for reservation expiry (device-local)
+  const [notifSeenAt, setNotifSeenAt] = useState(0);  // device-local "notifications seen up to" timestamp
 
   // Holds the exact object references most recently hydrated from the cloud, per
   // slice. A persist effect saves only when its slice DIFFERS from this snapshot
@@ -3273,7 +3292,7 @@ export default function App() {
   // attempts an auto-login if a remembered session matches this workspace.
   const loadWorkspaceData = async (slug) => {
     const scoped = (key, fallback) => loadKey(`restaurantos:${slug}:${key}`, fallback, true);
-    const [rest, accs, tbls, res, sh, ch, notifs, prods, draft, remembered] = await Promise.all([
+    const [rest, accs, tbls, res, sh, ch, notifs, prods, draft, remembered, seenStored] = await Promise.all([
       scoped("restaurant", null),
       scoped("accounts", []),
       scoped("tables", []),
@@ -3284,6 +3303,7 @@ export default function App() {
       scoped("products", []),
       scoped("orderDraft", {}),
       loadKey("restaurantos:remembered", null, false),
+      loadKey(`restaurantos:${slug}:notifSeenAt`, null, false), // device-local "seen" marker
     ]);
     // Record the loaded references BEFORE applying them so the persist effects
     // recognise these exact values as "just hydrated" and skip writing them back.
@@ -3297,6 +3317,12 @@ export default function App() {
     setNotifications(notifs);
     setProducts(prods);
     setOrderDraft(draft);
+    // "Unread" is per-device: a timestamp of the newest notification seen here.
+    // If none stored yet, migrate from the old shared `read` flags so previously
+    // read notifications don't all resurface as unread on this device.
+    setNotifSeenAt(typeof seenStored === "number"
+      ? seenStored
+      : (notifs || []).reduce((m, n) => (n && n.read && n.time > m ? n.time : m), 0));
     if (remembered && remembered.slug === slug) {
       const match = accs.find((a) => a.email === remembered.email && a.password === remembered.password);
       if (match) setUser(match);
@@ -3493,11 +3519,19 @@ export default function App() {
     setReservations((prev) => prev.filter((r) => r.id !== id));
   };
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  // Unread is per-device: notifications newer than the last time THIS device
+  // opened the panel. Opening the panel advances the device-local marker (saved
+  // to localStorage), so it never touches the shared cloud blob — one staffer
+  // reading their notifications no longer clears everyone else's badge.
+  const unreadCount = notifications.filter((n) => (n.time || 0) > notifSeenAt).length;
   const toggleNotifications = () => {
     setNotifOpen((open) => {
       const next = !open;
-      if (next) setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      if (next) {
+        const ts = Date.now();
+        setNotifSeenAt(ts);
+        if (workspace) saveKey(`restaurantos:${workspace.slug}:notifSeenAt`, ts, false);
+      }
       return next;
     });
   };
@@ -3575,7 +3609,7 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:wght@500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap');
         * { font-family: 'Inter', -apple-system, sans-serif; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        /* Do NOT add `overflow-x: hidden` to html/body — on iOS Safari it breaks
+        /* Do NOT add overflow-x hidden to html/body — on iOS Safari it breaks
            one-finger page scrolling (requires two fingers). The layout has no
            horizontal overflow, so it isn't needed. */
         /* Touch devices scroll by finger, so the bar is hidden there. Devices
@@ -3613,7 +3647,7 @@ export default function App() {
             isDark={isDark} setIsDark={setIsDark} onSignOut={signOut} onSwitchWorkspace={switchWorkspace} />
           <div style={{ flex: 1, minWidth: 0, height: "100dvh", display: "flex", flexDirection: "column" }}>
             <TopBar c={c} title={tr(titleMap[activeView])} isDark={isDark} setIsDark={setIsDark}
-              notifications={notifications} notifOpen={notifOpen} unreadCount={unreadCount} onOpenNotifications={toggleNotifications} />
+              notifications={notifications} notifOpen={notifOpen} unreadCount={unreadCount} onOpenNotifications={toggleNotifications} notifSeenAt={notifSeenAt} />
             <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
               <div style={{ width: "100%", maxWidth: contentMax, margin: "0 auto" }}>
                 {screens}
@@ -3624,7 +3658,7 @@ export default function App() {
       ) : (
         <div style={{ maxWidth: contentMax, margin: "0 auto", width: "100%", flex: 1, display: "flex", flexDirection: "column" }}>
           <TopBar c={c} title={tr(titleMap[view])} isDark={isDark} setIsDark={setIsDark}
-            notifications={notifications} notifOpen={notifOpen} unreadCount={unreadCount} onOpenNotifications={toggleNotifications} />
+            notifications={notifications} notifOpen={notifOpen} unreadCount={unreadCount} onOpenNotifications={toggleNotifications} notifSeenAt={notifSeenAt} />
           {screens}
           <BottomNav view={view} setView={setView} c={c} />
         </div>
