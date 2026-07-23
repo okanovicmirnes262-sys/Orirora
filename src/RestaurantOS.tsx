@@ -185,6 +185,9 @@ const HR = {
   "No shifts": "Nema smjena",
   "Add shift": "Dodaj smjenu",
   "Staff member": "Član osoblja",
+  "Type": "Vrsta",
+  "Work shift": "Radna smjena",
+  "Day off": "Slobodan dan",
   "Start": "Početak",
   "End": "Kraj",
 
@@ -565,6 +568,11 @@ function statusColor(c, status) {
 function formatDateLabel(dateStr) {
   const d = new Date(dateStr + "T00:00:00");
   if (Number.isNaN(d.getTime())) return dateStr || "";
+  if (LANG === "hr") {
+    const days = ["Nedjelja","Ponedjeljak","Utorak","Srijeda","Četvrtak","Petak","Subota"];
+    const months = ["sij","velj","ožu","tra","svi","lip","srp","kol","ruj","lis","stu","pro"];
+    return `${days[d.getDay()].toUpperCase()}, ${d.getDate()}. ${months[d.getMonth()]}`;
+  }
   const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return `${days[d.getDay()].toUpperCase()}, ${months[d.getMonth()]} ${d.getDate()}`;
@@ -1768,18 +1776,22 @@ function ShiftsScreen({ c, shifts, setShifts, staff, user }) {
     return d;
   });
   const [addFor, setAddFor] = useState(null);
-  const [newShift, setNewShift] = useState({ staffId: staff[0]?.id, start: "16:00", end: "23:00" });
+  const [newShift, setNewShift] = useState({ staffId: staff[0]?.id, start: "16:00", end: "23:00", off: false });
 
   const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(d.getDate() + i); return d; });
   const locale = LANG === "hr" ? "hr-HR" : undefined;
   const iso = (d) => localDateIso(d);
   const canManage = user.role === "owner";
-  const totalShifts = shifts.filter((s) => days.some((d) => iso(d) === s.day)).length;
-  const staffOnDuty = new Set(shifts.filter((s) => days.some((d) => iso(d) === s.day)).map((s) => s.staffId)).size;
+  const weekShifts = shifts.filter((s) => !s.off && days.some((d) => iso(d) === s.day));
+  const totalShifts = weekShifts.length;
+  const staffOnDuty = new Set(weekShifts.map((s) => s.staffId)).size;
 
   const addShift = () => {
     if (!newShift.staffId) return;
-    setShifts((prev) => [...prev, { id: uid(), day: addFor, staffId: newShift.staffId, start: newShift.start, end: newShift.end }]);
+    const entry = newShift.off
+      ? { id: uid(), day: addFor, staffId: newShift.staffId, off: true }
+      : { id: uid(), day: addFor, staffId: newShift.staffId, start: newShift.start, end: newShift.end };
+    setShifts((prev) => [...prev, entry]);
     setAddFor(null);
   };
   const removeShift = (id) => setShifts((prev) => prev.filter((s) => s.id !== id));
@@ -1809,15 +1821,16 @@ function ShiftsScreen({ c, shifts, setShifts, staff, user }) {
       {staff.length > 0 && days.map((d) => {
         const key = iso(d);
         const dayShifts = shifts.filter((s) => s.day === key);
+        const workCount = dayShifts.filter((s) => !s.off).length;
         return (
           <SectionCard key={key} c={c} style={{ marginBottom: 12, padding: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: dayShifts.length ? 10 : 0 }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14.5, color: c.text }}>{d.toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric" })}</div>
-                <div style={{ fontSize: 12, color: c.textFaint }}>{dayShifts.length === 0 ? tr("No shifts") : `${dayShifts.length} ${plural(dayShifts.length, ["shift", "shifts"], ["smjena", "smjene", "smjena"])}`}</div>
+                <div style={{ fontSize: 12, color: c.textFaint }}>{workCount === 0 ? tr("No shifts") : `${workCount} ${plural(workCount, ["shift", "shifts"], ["smjena", "smjene", "smjena"])}`}</div>
               </div>
               {canManage && (
-                <button onClick={() => { setNewShift({ staffId: staff[0]?.id, start: "16:00", end: "23:00" }); setAddFor(key); }} style={{ width: 30, height: 30, borderRadius: 10, border: `1px solid ${c.border}`, background: c.surfaceAlt, color: c.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <button onClick={() => { setNewShift({ staffId: staff[0]?.id, start: "16:00", end: "23:00", off: false }); setAddFor(key); }} style={{ width: 30, height: 30, borderRadius: 10, border: `1px solid ${c.border}`, background: c.surfaceAlt, color: c.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Plus size={15} />
                 </button>
               )}
@@ -1830,7 +1843,7 @@ function ShiftsScreen({ c, shifts, setShifts, staff, user }) {
                   <Avatar c={c} name={person.name} role={person.role} size={30} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 600, color: c.text }}>{person.name}</div>
-                    <div style={{ fontSize: 11.5, color: c.textSub }}>{s.start} – {s.end} · {tr(roleMeta(person.role).label)}</div>
+                    <div style={{ fontSize: 11.5, color: c.textSub }}>{s.off ? tr("Day off") : `${s.start} – ${s.end}`} · {tr(roleMeta(person.role).label)}</div>
                   </div>
                   {canManage && <button onClick={() => removeShift(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textFaint }}><Trash2 size={15} /></button>}
                 </div>
@@ -1849,11 +1862,25 @@ function ShiftsScreen({ c, shifts, setShifts, staff, user }) {
               style={{ width: "100%", padding: 12, borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, marginBottom: 14, fontSize: 16, boxSizing: "border-box" }}>
               {staff.map((s) => <option key={s.id} value={s.id}>{s.name} ({tr(roleMeta(s.role).label)})</option>)}
             </select>
-            <div style={{ display: "flex", gap: 10 }}>
-              <TextInput c={c} label={tr("Start")} type="time" value={newShift.start} onChange={(v) => setNewShift({ ...newShift, start: v })} />
-              <TextInput c={c} label={tr("End")} type="time" value={newShift.end} onChange={(v) => setNewShift({ ...newShift, end: v })} />
+            <div style={{ fontSize: 13, color: c.textSub, marginBottom: 6 }}>{tr("Type")}</div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {[{ off: false, label: tr("Work shift") }, { off: true, label: tr("Day off") }].map((opt) => {
+                const active = !!newShift.off === opt.off;
+                return (
+                  <button key={String(opt.off)} onClick={() => setNewShift({ ...newShift, off: opt.off })}
+                    style={{ flex: 1, padding: "10px 8px", borderRadius: 12, border: `1px solid ${active ? c.text : c.border}`, background: active ? c.text : c.surface, color: active ? c.surface : c.text, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
-            <PrimaryButton c={c} full onClick={addShift}>{tr("Add shift")}</PrimaryButton>
+            {!newShift.off && (
+              <div style={{ display: "flex", gap: 10 }}>
+                <TextInput c={c} label={tr("Start")} type="time" value={newShift.start} onChange={(v) => setNewShift({ ...newShift, start: v })} />
+                <TextInput c={c} label={tr("End")} type="time" value={newShift.end} onChange={(v) => setNewShift({ ...newShift, end: v })} />
+              </div>
+            )}
+            <PrimaryButton c={c} full onClick={addShift}>{newShift.off ? tr("Day off") : tr("Add shift")}</PrimaryButton>
           </div>
         </div>
       )}
@@ -1982,7 +2009,8 @@ function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
   const barColors = [c.green, c.amber, c.rose, c.blue, c.violet, c.blue, c.green];
 
   const myShifts = shifts.filter((s) => s.staffId === user.id);
-  const myHours = myShifts.reduce((acc, s) => {
+  const myWorkShifts = myShifts.filter((s) => !s.off);
+  const myHours = myWorkShifts.reduce((acc, s) => {
     const [sh, sm] = s.start.split(":").map(Number);
     let [eh, em] = s.end.split(":").map(Number);
     if (eh < sh) eh += 24;
@@ -1994,7 +2022,7 @@ function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
       <div style={{ padding: "0 20px 24px" }}>
         <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 18px" }}>{tr("My Analytics")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
-          <StatCard c={c} label={tr("MY SHIFTS")} value={myShifts.length} icon={Clock} accent={c.amber} />
+          <StatCard c={c} label={tr("MY SHIFTS")} value={myWorkShifts.length} icon={Clock} accent={c.amber} />
           <StatCard c={c} label={tr("HOURS SCHEDULED")} value={myHours.toFixed(0)} icon={BarChart3} accent={c.blue} />
         </div>
         <SectionCard c={c}>
@@ -2003,7 +2031,7 @@ function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
             <EmptyState c={c} icon={Clock} title={tr("No shifts scheduled")} message={tr("Check back once the owner publishes the schedule.")} />
           ) : (
             <div style={{ fontSize: 13.5, color: c.textSub, lineHeight: 1.8 }}>
-              {myShifts.map((s) => <div key={s.id}>{formatDateLabel(s.day)} · {s.start} – {s.end}</div>)}
+              {myShifts.map((s) => <div key={s.id}>{formatDateLabel(s.day)} · {s.off ? tr("Day off") : `${s.start} – ${s.end}`}</div>)}
             </div>
           )}
         </SectionCard>
