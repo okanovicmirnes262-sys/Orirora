@@ -5,8 +5,7 @@ import {
   ChefHat, UtensilsCrossed, Phone, Mail, User as UserIcon, LayoutGrid,
   Settings as SettingsIcon, ArrowDownRight, Wine, MoreHorizontal,
   CircleUser, Loader2, ChevronDown, Trash2, Copy, CheckCircle2, Store,
-  KeyRound, Search, Eye, EyeOff, Pencil,
-  ShoppingCart, Upload, Download, Minus, FileText, Image as ImageIcon
+  KeyRound, Search, Eye, EyeOff, Pencil, Minus
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar,
@@ -253,7 +252,6 @@ const HR = {
   "(you)": "(vi)",
 
   // — More —
-  "Order supplies": "Naruči robu",
   "Follow-ups": "Zamolbe",
   "Settings": "Postavke",
   "Dark mode": "Tamni način",
@@ -297,39 +295,6 @@ const HR = {
   "Seats each": "Mjesta po stolu",
   "No zone": "Bez zone",
   "Add": "Dodaj",
-
-  // — Ordering —
-  "Build a supplier order and export it as a table.": "Sastavite narudžbu za dobavljača i izvezite je kao tablicu.",
-  "Import": "Uvezi",
-  "Export CSV": "Izvezi CSV",
-  "Select items to delete": "Odaberi stavke za brisanje",
-  "selected": "odabrano",
-  "All": "Sve",
-  "None": "Ništa",
-  "Add an item (e.g. Coca-Cola)": "Dodaj stavku (npr. Coca-Cola)",
-  "No items yet": "Još nema stavki",
-  "Import your goods from a menu photo or PDF, or add them one by one above.": "Uvezite robu iz fotografije menija ili PDF-a, ili je dodajte jednu po jednu iznad.",
-  "Import from photo / PDF": "Uvezi iz fotografije / PDF-a",
-  "in order": "u narudžbi",
-  "Clear": "Očisti",
-  "Remove all items?": "Ukloniti sve stavke?",
-  "The selected items will be removed from your catalog and any current order.": "Odabrane stavke uklonit će se iz kataloga i trenutne narudžbe.",
-  "This item will be removed from your catalog and any current order.": "Ova stavka uklonit će se iz kataloga i trenutne narudžbe.",
-
-  // — Import modal —
-  "Import items": "Uvoz stavki",
-  "Snap a photo of the menu or pick a PDF — we'll read the text. Then review the list before adding.": "Uslikajte meni ili odaberite PDF — pročitat ćemo tekst. Zatim pregledajte popis prije dodavanja.",
-  "Photo": "Fotografija",
-  "PDF": "PDF",
-  "Reading…": "Čitanje…",
-  "Reading PDF…": "Čitam PDF…",
-  "Reading image…": "Čitam sliku…",
-  "No text found — type items manually below.": "Nije pronađen tekst — upiši artikle ručno ispod.",
-  "Automatic reading failed — paste or type items manually below.": "Automatsko čitanje nije uspjelo — zalijepi ili upiši artikle ručno ispod.",
-  "Items — one per line": "Stavke — jedna po retku",
-  "Clean up": "Očisti",
-  "Tip: paste a menu and tap \"Clean up\" to drop prices, headers and descriptions, and shorten dish names (e.g. \"Hobotnica na žaru\" → \"Hobotnica\").": "Savjet: zalijepite meni i dodirnite \"Očisti\" da uklonite cijene, naslove i opise te skratite nazive jela (npr. \"Hobotnica na žaru\" → \"Hobotnica\").",
-  "Default unit": "Zadana jedinica",
 
   // — Follow-ups —
   "Invite guests to leave a Google review after their visit.": "Pozovite goste da nakon posjeta ostave Google recenziju.",
@@ -953,7 +918,7 @@ function BottomNav({ view, setView, c }) {
       borderTop: `1px solid ${c.border}`, padding: "10px 6px calc(14px + env(safe-area-inset-bottom, 0px))", justifyContent: "space-around", zIndex: 20,
     }}>
       {NAV_ITEMS.map((item) => {
-        const activeSet = item.key === "more" ? ["more", "shifts", "staff", "settings", "orders", "followups"].includes(view) : view === item.key;
+        const activeSet = item.key === "more" ? ["more", "shifts", "staff", "settings", "followups"].includes(view) : view === item.key;
         const Icon = item.icon;
         return (
           <button key={item.key} onClick={() => setView(item.key)} style={{
@@ -970,7 +935,7 @@ function BottomNav({ view, setView, c }) {
 }
 
 /* Desktop-only left navigation. Replaces the bottom bar on wide screens and
-   also surfaces the "More" destinations (orders/shifts/team/follow-ups/settings)
+   also surfaces the "More" destinations (shifts/team/follow-ups/settings)
    directly, plus theme + account actions — so nothing from the mobile More
    screen is lost. */
 function SideNav({ view, setView, c, user, restaurant, isDark, setIsDark, onSignOut, onSwitchWorkspace }) {
@@ -981,7 +946,6 @@ function SideNav({ view, setView, c, user, restaurant, isDark, setIsDark, onSign
     { key: "analytics", label: "Analytics", icon: BarChart3 },
   ];
   const secondary = [
-    { key: "orders", label: "Order supplies", icon: ShoppingCart },
     { key: "shifts", label: "Shifts", icon: Clock },
     { key: "staff", label: "Team", icon: Users },
     ...((user.role === "owner" || user.role === "waiter")
@@ -2314,7 +2278,6 @@ function StaffScreen({ c, staff, setStaff, user, restaurant, onPasswordChanged }
 
 function MoreScreen({ c, user, restaurant, setView, isDark, setIsDark, onSignOut, onSwitchWorkspace }) {
   const rows = [
-    { label: "Order supplies", icon: ShoppingCart, accent: c.green, action: () => setView("orders") },
     { label: "Shifts", icon: Clock, accent: c.amber, action: () => setView("shifts") },
     { label: "Team", icon: Users, accent: c.blue, action: () => setView("staff") },
     ...(user.role === "owner" || user.role === "waiter"
@@ -2653,552 +2616,6 @@ function FollowUpsScreen({ c, reservations, setReservations, restaurant, setView
 }
 
 /* ------------------------------------------------------------------ */
-/*  Supplies ordering — catalog + import (OCR / PDF) + CSV export       */
-/* ------------------------------------------------------------------ */
-
-const ORDER_UNITS = ["kom", "kg", "L"];
-
-/* ---- Menu parsing (heuristic, no AI) --------------------------------
-   Two entry points:
-     extractMenuItems(text) — aggressive: used to turn raw OCR / PDF text into a
-        clean starting list (drops prices, section headers and descriptions, and
-        shortens dish preparations like "Hobotnica na žaru" → "Hobotnica").
-     parseItemLines(text)   — lenient: used for the live item count and the final
-        "Add" once the person has curated the textarea (trusts their lines, only
-        strips prices/bullets and shortens preparation).
-   Neither is perfect — the review textarea is always the final say. */
-
-// Common Croatian menu section headers to drop (normalised, no diacritics).
-const MENU_HEADERS = new Set([
-  "predjela", "hladna predjela", "topla predjela", "juhe", "juha", "salate", "salata",
-  "glavna jela", "glavno jelo", "jela", "specijaliteti", "riba", "ribe", "riblja jela",
-  "morski plodovi", "meso", "mesna jela", "rostilj", "sa zara", "tjestenina", "tjestenine",
-  "paste", "njoki", "rizoto", "rizota", "pizza", "pizze", "deserti", "desert", "slastice",
-  "sladoled", "pica", "napitci", "napici", "topli napitci", "hladni napitci",
-  "bezalkoholna pica", "alkoholna pica", "vina", "vino", "bijela vina", "crna vina",
-  "pjenusci", "pivo", "piva", "toceno pivo", "rakije", "rakija", "zestoka pica", "zestica",
-  "kava", "kave", "caj", "cajevi", "prilozi", "prilog", "umaci", "dorucak", "rucak",
-  "vecera", "jelovnik", "cjenik", "cijene", "ponuda", "dnevni meni", "meni", "menu",
-  "a la carte", "dodaci", "sirevi", "sir",
-]);
-
-// Prepositions that introduce a dish's preparation — cut the name here.
-const PREP_CUT = /\s+(?:na|sa|s|u|uz)\s+/i;
-
-function normName(s) {
-  return (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-}
-
-// A real supply/product name is short; anything longer is a run-on blob.
-const MAX_NAME_LEN = 48;
-
-// Collapse letter-spaced titles ("B I S T R O" \u2192 "BISTRO") so they don't turn
-// into a swarm of one-letter items. No-op on normal lines.
-function collapseLetterSpacing(line) {
-  const tokens = (line || "").split(/\s+/).filter(Boolean);
-  if (tokens.length < 4) return line;
-  const singles = tokens.filter((t) => t.length === 1 && /\p{L}/u.test(t)).length;
-  if (singles / tokens.length <= 0.6) return line;
-  // Built at call time (not as a literal) so engines lacking lookbehind
-  // (old iOS Safari) throw here — and get caught — instead of failing to parse
-  // the whole bundle at load. On those engines this one cleanup is skipped.
-  try {
-    return line.replace(new RegExp("(?<=\\p{L})\\s+(?=\\p{L}(?:\\s|$))", "gu"), "");
-  } catch (e) {
-    return line;
-  }
-}
-
-// Strip a leading menu-category header from a line ("GLAVNA JELA Filet\u2026" \u2192 "Filet\u2026").
-function stripLeadingHeader(seg) {
-  let s = (seg || "").trim();
-  for (let guard = 0; guard < 4; guard++) {
-    let stripped = false;
-    for (const h of MENU_HEADERS) {
-      const n = h.split(" ").length;
-      const prefix = s.split(/\s+/).slice(0, n).join(" ");
-      if (prefix && normName(prefix) === h) { s = s.split(/\s+/).slice(n).join(" ").trim(); stripped = true; break; }
-    }
-    if (!stripped) break;
-  }
-  return s;
-}
-
-// Split a run-on line into candidate segments (sentence ends / big gaps / bullets).
-function splitRunOn(line) {
-  return (line || "").split(/(?:\.\s+|!\s+|\s{2,}|[\u00b7\u2022\u2022])/).map((s) => s.trim()).filter(Boolean);
-}
-
-function firstWords(s, n) {
-  return (s || "").split(/\s+/).filter(Boolean).slice(0, n).join(" ");
-}
-
-function basicClean(raw) {
-  let s = collapseLetterSpacing((raw || "").replace(/\t/g, " "));
-  // leading list numbering / bullets: "1. ", "12) ", "- ", "•"
-  s = s.replace(/^\s*(?:\d{1,3}\s*[.)\-–]\s+|[\-•*·—>]+\s*)/, "");
-  // leading measure/volume: "0,5 l ", "0,33 ", "2 kg " (but not "7 UP")
-  s = s.replace(/^\s*(?:\d{1,2}[.,]\d{1,2}\s*(?:l|dl|cl|ml|g|kg|kom)?|\d{1,2}\s*(?:l|dl|cl|ml|g|kg|kom))\s+/i, "");
-  // trailing allergen markers "(1,3,7)" / "[..]" / "*"
-  s = s.replace(/\s*[([][\d,\s.]+[)\]]\s*$/, "").replace(/\*+\s*$/, "");
-  // trailing dot-leaders + price / volume, applied repeatedly so both a volume
-  // and a price get removed: "Coca Cola 0,33 ... 25 kn" → "Coca Cola"
-  const trailing = /[\s.·•–—]*\b\d{1,4}(?:[.,]\d{1,2})?\s*(?:kn|km|hrk|eur|€|\$|l|dl|cl|ml|g|kg)?\.?\s*$/i;
-  let prev;
-  do { prev = s; s = s.replace(trailing, ""); } while (s !== prev && s.length);
-  return s.replace(/\s{2,}/g, " ").trim();
-}
-
-function simplifyPrep(s) {
-  const m = s.match(PREP_CUT);
-  if (m && m.index >= 2) {
-    const head = s.slice(0, m.index).trim();
-    if (head.length >= 3 && /\p{L}/u.test(head)) return head;
-  }
-  return s;
-}
-
-function isPriceOnly(s) {
-  return /^[\d.,\-€$\s]+(?:kn|km|hrk|eur|€|\$)?\.?$/i.test(s);
-}
-function isHeaderLine(s) {
-  return MENU_HEADERS.has(normName(s.replace(/[·:().]/g, " ").replace(/\s{2,}/g, " ")));
-}
-function looksLikeDescription(s) {
-  const words = s.split(/\s+/).filter(Boolean);
-  const first = (s.match(/\p{L}/u) || [])[0];
-  const startsLower = first && first.toLowerCase() === first && first.toUpperCase() !== first;
-  if (words.length >= 8) return true;                 // very long line → description
-  if (startsLower && words.length >= 3) return true;  // lowercase sentence → description
-  return false;
-}
-
-function finalizeName(s) {
-  return s.replace(/[\s,;:.\-–]+$/, "").trim();
-}
-
-// Validate + normalise one candidate and push it if it looks like a real item.
-function pushCandidate(cleanedRaw, out, seen) {
-  const cleaned = stripLeadingHeader(cleanedRaw);
-  if (cleaned.length < 2 || !/\p{L}/u.test(cleaned)) return;
-  if (isPriceOnly(cleaned) || isHeaderLine(cleaned)) return;
-  const simplified = simplifyPrep(cleaned);
-  if (looksLikeDescription(simplified)) return;
-  const name = finalizeName(simplified);
-  const key = normName(name);
-  if (name.length < 2 || name.length > MAX_NAME_LEN || !key || isHeaderLine(name) || seen.has(key)) return;
-  seen.add(key);
-  out.push(name);
-}
-
-// Aggressive: raw OCR/PDF → curated item names. Handles both proper lines and
-// run-on paragraphs (a whole menu on one line) by splitting and taking the
-// leading words of each segment.
-function extractMenuItems(text) {
-  const out = [], seen = new Set();
-  (text || "").split(/\r?\n/).forEach((raw) => {
-    const cleaned = basicClean(raw);
-    if (cleaned.length < 2) return;
-    const words = cleaned.split(/\s+/).filter(Boolean).length;
-    if (cleaned.length <= MAX_NAME_LEN && words <= 6) {
-      pushCandidate(cleaned, out, seen);
-    } else {
-      // run-on line → split into segments; each item's name leads its segment
-      splitRunOn(cleaned).forEach((seg) => pushCandidate(basicClean(firstWords(stripLeadingHeader(seg), 4)), out, seen));
-    }
-  });
-  return out;
-}
-
-// Lenient: curated textarea → final list (trusts the person's lines, but still
-// strips prices/bullets, shortens preparation and caps run-on blobs).
-function parseItemLines(text) {
-  const out = [], seen = new Set();
-  (text || "").split(/\r?\n/).forEach((raw) => {
-    const cleaned = basicClean(raw);
-    if (cleaned.length < 2 || !/\p{L}/u.test(cleaned) || isPriceOnly(cleaned)) return;
-    const name = finalizeName(simplifyPrep(cleaned));
-    const key = normName(name);
-    if (name.length < 2 || name.length > MAX_NAME_LEN || !key || seen.has(key)) return;
-    seen.add(key);
-    out.push(name);
-  });
-  return out;
-}
-
-/* Read an image file with Tesseract (Croatian + English). Loaded on demand so
-   it never weighs down the initial bundle. */
-async function ocrImageFile(file, onProgress) {
-  const Tesseract = await import("tesseract.js");
-  const opts = { logger: (m) => { if (m.status === "recognizing text" && onProgress) onProgress(m.progress); } };
-  try {
-    const { data } = await Tesseract.recognize(file, "hrv+eng", opts);
-    return data.text || "";
-  } catch (e) {
-    // Croatian traineddata may be unavailable — fall back to English only.
-    const { data } = await Tesseract.recognize(file, "eng", opts);
-    return data.text || "";
-  }
-}
-
-/* Extract embedded text from a (digital) PDF via pdf.js. Loaded on demand. */
-async function pdfTextFromFile(file) {
-  const pdfjs = await import("pdfjs-dist");
-  const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
-  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-  const buf = await file.arrayBuffer();
-  const doc = await pdfjs.getDocument({ data: buf }).promise;
-  let text = "";
-  for (let p = 1; p <= doc.numPages; p++) {
-    const page = await doc.getPage(p);
-    const content = await page.getTextContent();
-    // Reconstruct visual lines: pdf.js marks line ends with `hasEOL`; fall back
-    // to a jump in the y-coordinate (transform[5]) for PDFs that don't set it.
-    // Without this the whole page collapses onto one line and the parser sees a
-    // single giant "item".
-    let line = "";
-    let lastY = null;
-    for (const it of content.items) {
-      const str = it.str || "";
-      const y = it.transform ? it.transform[5] : null;
-      if (lastY !== null && y !== null && Math.abs(y - lastY) > 3 && line.trim()) {
-        text += line.trim() + "\n";
-        line = "";
-      }
-      line += str + (it.hasEOL ? "\n" : " ");
-      if (it.hasEOL) { text += line.trim() + "\n"; line = ""; lastY = null; }
-      else if (y !== null) lastY = y;
-    }
-    if (line.trim()) text += line.trim() + "\n";
-    page.cleanup();
-  }
-  return text;
-}
-
-function csvField(v) {
-  const s = String(v == null ? "" : v);
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-/* Build a CSV (with a UTF-8 BOM so Excel reads č/ž/š correctly). */
-function buildOrderCsv(rows) {
-  const header = ["Artikl", "Količina", "Jedinica"];
-  const lines = [header, ...rows.map((r) => [r.name, r.qty, r.unit])];
-  return "﻿" + lines.map((l) => l.map(csvField).join(",")).join("\r\n");
-}
-
-function triggerDownload(filename, text, mime) {
-  const blob = new Blob([text], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function ImportItemsModal({ c, onClose, onAdd }) {
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState("");
-  const [defaultUnit, setDefaultUnit] = useState("kom");
-
-  const handleFile = async (file) => {
-    if (!file) return;
-    setBusy(true); setProgress(0); setStatus("");
-    try {
-      let extracted = "";
-      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
-        setStatus(tr("Reading PDF…"));
-        extracted = await pdfTextFromFile(file);
-      } else {
-        setStatus(tr("Reading image…"));
-        extracted = await ocrImageFile(file, (p) => setProgress(p));
-      }
-      const cleaned = extractMenuItems(extracted).join("\n");
-      setText((prev) => (prev.trim() ? prev + "\n" : "") + cleaned);
-      setStatus(cleaned ? "" : tr("No text found — type items manually below."));
-    } catch (e) {
-      setStatus(tr("Automatic reading failed — paste or type items manually below."));
-    } finally {
-      setBusy(false); setProgress(0);
-    }
-  };
-
-  const parsed = parseItemLines(text);
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        background: c.surface, width: "100%", maxWidth: 520, margin: "0 auto", borderRadius: "24px 24px 0 0",
-        padding: "22px 22px calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "90dvh", overflowY: "auto", fontFamily: fontStack().body,
-      }}>
-        <div style={{ fontWeight: 700, fontSize: 17, color: c.text, marginBottom: 4 }}>{tr("Import items")}</div>
-        <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>
-          {tr("Snap a photo of the menu or pick a PDF — we'll read the text. Then review the list before adding.")}
-        </div>
-
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          <label style={{
-            flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
-            padding: "16px 8px", borderRadius: 14, border: `1.5px dashed ${c.border}`, background: c.surfaceAlt, cursor: busy ? "default" : "pointer",
-          }}>
-            <ImageIcon size={20} color={c.textSub} />
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: c.text }}>{tr("Photo")}</span>
-            <input type="file" accept="image/*" capture="environment" disabled={busy} style={{ display: "none" }}
-              onChange={(e) => handleFile(e.target.files?.[0])} />
-          </label>
-          <label style={{
-            flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
-            padding: "16px 8px", borderRadius: 14, border: `1.5px dashed ${c.border}`, background: c.surfaceAlt, cursor: busy ? "default" : "pointer",
-          }}>
-            <FileText size={20} color={c.textSub} />
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: c.text }}>{tr("PDF")}</span>
-            <input type="file" accept="application/pdf,.pdf" disabled={busy} style={{ display: "none" }}
-              onChange={(e) => handleFile(e.target.files?.[0])} />
-          </label>
-        </div>
-
-        {busy && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, color: c.textSub, fontSize: 13 }}>
-            <Loader2 size={15} className="spin" /> {status || tr("Reading…")}{progress > 0 ? ` ${Math.round(progress * 100)}%` : ""}
-          </div>
-        )}
-        {!busy && status && <div style={{ fontSize: 12.5, color: c.textSub, marginBottom: 12 }}>{status}</div>}
-
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-          <span style={{ fontSize: 13, color: c.textSub, fontWeight: 500 }}>{tr("Items — one per line")}</span>
-          {text.trim() && (
-            <button onClick={() => setText(extractMenuItems(text).join("\n"))} style={{ background: "none", border: `1px solid ${c.border}`, borderRadius: 8, padding: "4px 10px", cursor: "pointer", color: c.textSub, fontSize: 12, fontWeight: 600 }}>
-              {tr("Clean up")}
-            </button>
-          )}
-        </div>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7} placeholder={"Coca-Cola\nHobotnica\nMaslinovo ulje"}
-          style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box", resize: "vertical", fontFamily: fontStack().body, outline: "none" }} />
-        <div style={{ fontSize: 11.5, color: c.textFaint, marginTop: 5 }}>{tr("Tip: paste a menu and tap \"Clean up\" to drop prices, headers and descriptions, and shorten dish names (e.g. \"Hobotnica na žaru\" → \"Hobotnica\").")}</div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "12px 0 16px" }}>
-          <span style={{ fontSize: 13, color: c.textSub }}>{tr("Default unit")}</span>
-          <div style={{ display: "flex", gap: 6 }}>
-            {ORDER_UNITS.map((u) => (
-              <button key={u} onClick={() => setDefaultUnit(u)} style={{
-                padding: "6px 12px", borderRadius: 999, cursor: "pointer", fontSize: 13, fontWeight: 600,
-                border: `1px solid ${defaultUnit === u ? c.text : c.border}`, background: defaultUnit === u ? c.text : c.surface, color: defaultUnit === u ? c.bg : c.textSub,
-              }}>{u}</button>
-            ))}
-          </div>
-        </div>
-
-        <PrimaryButton c={c} full disabled={parsed.length === 0} onClick={() => { onAdd(parsed, defaultUnit); onClose(); }}>
-          <Plus size={16} /> {tr("Add")} {parsed.length > 0 ? parsed.length : ""} {plural(parsed.length, ["item", "items"], ["artikl", "artikla", "artikala"])}
-        </PrimaryButton>
-        <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
-      </div>
-    </div>
-  );
-}
-
-function OrderingScreen({ c, products, setProducts, orderDraft, setOrderDraft, restaurant }) {
-  const [importing, setImporting] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newUnit, setNewUnit] = useState("kom");
-  const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected] = useState(() => new Set());
-  const [bulkConfirm, setBulkConfirm] = useState(false);
-
-  const removeProducts = (ids) => {
-    const set = ids instanceof Set ? ids : new Set(ids);
-    setProducts((prev) => prev.filter((p) => !set.has(p.id)));
-    setOrderDraft((prev) => { const n = { ...prev }; set.forEach((id) => delete n[id]); return n; });
-  };
-  const removeOne = (id) => removeProducts([id]);           // one-tap delete
-  const toggleSelect = (id) => setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const exitSelect = () => { setSelectMode(false); setSelected(new Set()); };
-  const selectAll = () => setSelected(new Set(products.map((p) => p.id)));
-  const deleteSelected = () => { removeProducts(selected); setBulkConfirm(false); exitSelect(); };
-
-  const setQty = (id, qty) => setOrderDraft((prev) => {
-    const n = Math.max(0, Number(qty) || 0);
-    const next = { ...prev };
-    if (n <= 0) delete next[id]; else next[id] = n;
-    return next;
-  });
-  const step = (id, delta) => setQty(id, (Number(orderDraft[id]) || 0) + delta);
-
-  const setUnit = (id, unit) => setProducts((prev) => prev.map((p) => p.id === id ? { ...p, unit } : p));
-
-  const addManual = () => {
-    const name = newName.trim();
-    if (!name) return;
-    if (!products.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
-      setProducts((prev) => [...prev, { id: uid(), name, unit: newUnit }]);
-    }
-    setNewName("");
-  };
-
-  const addMany = (names, unit) => {
-    setProducts((prev) => {
-      const have = new Set(prev.map((p) => p.name.toLowerCase()));
-      const fresh = [];
-      names.forEach((name) => {
-        const key = name.toLowerCase();
-        if (!have.has(key)) { have.add(key); fresh.push({ id: uid(), name, unit }); }
-      });
-      return [...prev, ...fresh];
-    });
-  };
-
-  const orderRows = products
-    .filter((p) => (Number(orderDraft[p.id]) || 0) > 0)
-    .map((p) => ({ name: p.name, qty: orderDraft[p.id], unit: p.unit }));
-  const orderCount = orderRows.length;
-
-  const dateStr = localDateIso();
-
-  const exportCsv = () => {
-    if (!orderRows.length) return;
-    triggerDownload(`narudzba-${slugify(restaurant?.name || "restaurant")}-${dateStr}.csv`, buildOrderCsv(orderRows), "text/csv;charset=utf-8;");
-  };
-
-  const emailOrder = () => {
-    if (!orderRows.length) return;
-    const rows = orderRows.map((r) => `- ${r.name}: ${r.qty} ${r.unit}`).join("\n");
-    const name = restaurant?.name || "";
-    const body = LANG === "hr"
-      ? `Poštovani,\n\nMolim isporuku sljedeće robe:\n\n${rows}\n\nHvala,\n${name}`
-      : `Dear supplier,\n\nPlease deliver the following goods:\n\n${rows}\n\nThank you,\n${name}`;
-    const subject = LANG === "hr" ? `Narudžba robe — ${name} (${dateStr})` : `Supply order — ${name} (${dateStr})`;
-    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  };
-
-  const clearOrder = () => setOrderDraft({});
-
-  return (
-    <div style={{ padding: "0 20px 24px" }}>
-      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, margin: "4px 0 2px" }}>{tr("Order supplies")}</div>
-      <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 16 }}>{tr("Build a supplier order and export it as a table.")}</div>
-
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <GhostButton c={c} onClick={() => setImporting(true)} style={{ flex: 1, padding: "12px 10px" }}>
-          <Upload size={16} /> {tr("Import")}
-        </GhostButton>
-        <PrimaryButton c={c} onClick={exportCsv} disabled={orderCount === 0} style={{ flex: 1, padding: "13px 10px" }}>
-          <Download size={16} /> {tr("Export CSV")}
-        </PrimaryButton>
-      </div>
-
-      {products.length > 0 && (
-        selectMode ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: c.surfaceAlt, borderRadius: 14, padding: "10px 14px", marginBottom: 16 }}>
-            <span style={{ fontSize: 13.5, color: c.text, fontWeight: 600 }}>{selected.size} {tr("selected")}</span>
-            <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-              <button onClick={selected.size === products.length ? () => setSelected(new Set()) : selectAll} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600 }}>
-                {selected.size === products.length ? tr("None") : tr("All")}
-              </button>
-              <button onClick={() => selected.size && setBulkConfirm(true)} disabled={!selected.size} style={{ background: "none", border: "none", cursor: selected.size ? "pointer" : "default", color: selected.size ? c.rose : c.textFaint, fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
-                <Trash2 size={14} /> {tr("Delete")}
-              </button>
-              <button onClick={exitSelect} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600 }}>{tr("Cancel")}</button>
-            </div>
-          </div>
-        ) : (
-          <button onClick={() => setSelectMode(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600, marginBottom: 12, padding: 0 }}>
-            <CheckCircle2 size={14} /> {tr("Select items to delete")}
-          </button>
-        )
-      )}
-
-      {orderCount > 0 && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: c.surfaceAlt, borderRadius: 14, padding: "12px 14px", marginBottom: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: c.text, fontWeight: 600 }}>
-            <ShoppingCart size={15} color={c.textSub} /> {orderCount} {plural(orderCount, ["item", "items"], ["artikl", "artikla", "artikala"])} {tr("in order")}
-          </div>
-          <div style={{ display: "flex", gap: 14 }}>
-            <button onClick={emailOrder} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-              <Mail size={14} /> {tr("Email")}
-            </button>
-            <button onClick={clearOrder} style={{ background: "none", border: "none", cursor: "pointer", color: c.rose, fontSize: 12.5, fontWeight: 600 }}>{tr("Clear")}</button>
-          </div>
-        </div>
-      )}
-
-      {/* Quick manual add */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addManual()}
-          placeholder={tr("Add an item (e.g. Coca-Cola)")}
-          style={{ flex: 1, minWidth: 0, padding: "12px 14px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box", outline: "none" }} />
-        <select value={newUnit} onChange={(e) => setNewUnit(e.target.value)}
-          style={{ padding: "12px 10px", borderRadius: 12, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }}>
-          {ORDER_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-        </select>
-        <button onClick={addManual} disabled={!newName.trim()} style={{ width: 46, borderRadius: 12, border: "none", background: newName.trim() ? c.cta : c.textFaint, color: c.ctaText, cursor: newName.trim() ? "pointer" : "default", flexShrink: 0 }}>
-          <Plus size={18} style={{ margin: "0 auto" }} />
-        </button>
-      </div>
-
-      {products.length === 0 ? (
-        <EmptyState c={c} icon={ShoppingCart} title={tr("No items yet")}
-          message={tr("Import your goods from a menu photo or PDF, or add them one by one above.")}
-          actionLabel={tr("Import from photo / PDF")} onAction={() => setImporting(true)} />
-      ) : (
-        products.map((p) => {
-          const qty = Number(orderDraft[p.id]) || 0;
-          const inOrder = qty > 0;
-          const isSel = selected.has(p.id);
-          return (
-            <div key={p.id} onClick={selectMode ? () => toggleSelect(p.id) : undefined} style={{
-              display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 14, marginBottom: 8,
-              border: `1px solid ${(selectMode ? isSel : inOrder) ? c.text : c.border}`,
-              background: (selectMode ? isSel : inOrder) ? c.surfaceAlt : c.surface,
-              cursor: selectMode ? "pointer" : "default",
-            }}>
-              {selectMode && (
-                <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: `1.5px solid ${isSel ? c.text : c.borderStrong}`, background: isSel ? c.text : "transparent" }}>
-                  {isSel && <Check size={14} color={c.bg} />}
-                </div>
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 14.5, color: c.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
-                {selectMode ? (
-                  <div style={{ fontSize: 12, color: c.textSub, marginTop: 2 }}>{p.unit}</div>
-                ) : (
-                  <select value={p.unit} onChange={(e) => setUnit(p.id, e.target.value)}
-                    style={{ marginTop: 2, padding: "2px 4px", borderRadius: 8, border: `1px solid ${c.border}`, background: "transparent", color: c.textSub, fontSize: 12 }}>
-                    {ORDER_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                )}
-              </div>
-              {!selectMode && (
-                <>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <button onClick={() => step(p.id, -1)} style={{ width: 30, height: 30, borderRadius: 9, border: `1px solid ${c.border}`, background: c.surface, color: c.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Minus size={14} /></button>
-                    <input value={qty || ""} onChange={(e) => setQty(p.id, e.target.value)} inputMode="decimal" placeholder="0"
-                      style={{ width: 46, textAlign: "center", padding: "7px 4px", borderRadius: 9, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, boxSizing: "border-box" }} />
-                    <button onClick={() => step(p.id, 1)} style={{ width: 30, height: 30, borderRadius: 9, border: `1px solid ${c.border}`, background: c.surface, color: c.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Plus size={14} /></button>
-                  </div>
-                  <button onClick={() => removeOne(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textFaint, flexShrink: 0 }}><Trash2 size={15} /></button>
-                </>
-              )}
-            </div>
-          );
-        })
-      )}
-
-      {importing && <ImportItemsModal c={c} onClose={() => setImporting(false)} onAdd={addMany} />}
-      {bulkConfirm && (
-        <ConfirmDialog c={c} title={`${LANG === "hr" ? "Ukloniti" : "Remove"} ${selected.size} ${plural(selected.size, ["item", "items"], ["artikl", "artikla", "artikala"])}?`}
-          message={tr("The selected items will be removed from your catalog and any current order.")}
-          confirmLabel={tr("Remove")} onCancel={() => setBulkConfirm(false)} onConfirm={deleteSelected} />
-      )}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /*  Configuration screen (shown when Supabase is not set up)           */
 /* ------------------------------------------------------------------ */
 
@@ -3279,8 +2696,6 @@ export default function App() {
   const [shifts, setShifts] = useState([]);
   const [chat, setChat] = useState({ general: [], floor: [], kitchen: [] });
   const [notifications, setNotifications] = useState([]);
-  const [products, setProducts] = useState([]);     // supplies catalog
-  const [orderDraft, setOrderDraft] = useState({});  // { productId: quantity }
   const [now, setNow] = useState(() => Date.now());  // minute tick for reservation expiry (device-local)
   const [notifSeenAt, setNotifSeenAt] = useState(0);  // device-local "notifications seen up to" timestamp
 
@@ -3297,7 +2712,7 @@ export default function App() {
   // attempts an auto-login if a remembered session matches this workspace.
   const loadWorkspaceData = async (slug) => {
     const scoped = (key, fallback) => loadKey(`restaurantos:${slug}:${key}`, fallback, true);
-    const [rest, accs, tbls, res, sh, ch, notifs, prods, draft, remembered, seenStored] = await Promise.all([
+    const [rest, accs, tbls, res, sh, ch, notifs, remembered, seenStored] = await Promise.all([
       scoped("restaurant", null),
       scoped("accounts", []),
       scoped("tables", []),
@@ -3305,14 +2720,12 @@ export default function App() {
       scoped("shifts", []),
       scoped("chat", { general: [], floor: [], kitchen: [] }),
       scoped("notifications", []),
-      scoped("products", []),
-      scoped("orderDraft", {}),
       loadKey("restaurantos:remembered", null, false),
       loadKey(`restaurantos:${slug}:notifSeenAt`, null, false), // device-local "seen" marker
     ]);
     // Record the loaded references BEFORE applying them so the persist effects
     // recognise these exact values as "just hydrated" and skip writing them back.
-    lastLoaded.current = { restaurant: rest, accounts: accs, tables: tbls, reservations: res, shifts: sh, chat: ch, notifications: notifs, products: prods, orderDraft: draft };
+    lastLoaded.current = { restaurant: rest, accounts: accs, tables: tbls, reservations: res, shifts: sh, chat: ch, notifications: notifs };
     setRestaurant(rest);
     setAccounts(accs);
     setTables(tbls);
@@ -3320,8 +2733,6 @@ export default function App() {
     setShifts(sh);
     setChat(ch);
     setNotifications(notifs);
-    setProducts(prods);
-    setOrderDraft(draft);
     // "Unread" is per-device: a timestamp of the newest notification seen here.
     // If none stored yet, migrate from the old shared `read` flags so previously
     // read notifications don't all resurface as unread on this device.
@@ -3383,8 +2794,6 @@ export default function App() {
   useEffect(() => { if (loaded && workspace && shifts !== lastLoaded.current.shifts) saveKey(`restaurantos:${workspace.slug}:shifts`, shifts, true); }, [shifts, loaded, workspace]);
   useEffect(() => { if (loaded && workspace && chat !== lastLoaded.current.chat) saveKey(`restaurantos:${workspace.slug}:chat`, chat, true); }, [chat, loaded, workspace]);
   useEffect(() => { if (loaded && workspace && notifications !== lastLoaded.current.notifications) saveKey(`restaurantos:${workspace.slug}:notifications`, notifications, true); }, [notifications, loaded, workspace]);
-  useEffect(() => { if (loaded && workspace && products !== lastLoaded.current.products) saveKey(`restaurantos:${workspace.slug}:products`, products, true); }, [products, loaded, workspace]);
-  useEffect(() => { if (loaded && workspace && orderDraft !== lastLoaded.current.orderDraft) saveKey(`restaurantos:${workspace.slug}:orderDraft`, orderDraft, true); }, [orderDraft, loaded, workspace]);
   useEffect(() => { if (loaded) saveKey("restaurantos:theme", { isDark }, false); }, [isDark, loaded]);
   useEffect(() => { if (loaded) saveKey("restaurantos:lang", lang, false); }, [lang, loaded]);
 
@@ -3414,8 +2823,6 @@ export default function App() {
     setShifts([]);
     setChat({ general: [], floor: [], kitchen: [] });
     setNotifications([]);
-    setProducts([]);
-    setOrderDraft({});
     setUser(owner);
     setWorkspace(ws);
     setCreatingNew(false);
@@ -3479,8 +2886,6 @@ export default function App() {
     setShifts([]);
     setChat({ general: [], floor: [], kitchen: [] });
     setNotifications([]);
-    setProducts([]);
-    setOrderDraft({});
     setView("dashboard");
     saveKey("restaurantos:workspace", null, false);
     saveKey("restaurantos:remembered", null, false);
@@ -3583,7 +2988,7 @@ export default function App() {
   const titleMap = {
     dashboard: "Dashboard", reservations: "Reservations", chat: "Chat",
     analytics: user.role === "owner" ? "Analytics" : "My Analytics",
-    more: "More", shifts: "Shifts", staff: "Team", settings: "Settings", orders: "Order supplies", followups: "Follow-ups",
+    more: "More", shifts: "Shifts", staff: "Team", settings: "Settings", followups: "Follow-ups",
   };
 
   const isDesktop = bp === "desktop";
@@ -3603,7 +3008,6 @@ export default function App() {
       {activeView === "staff" && <StaffScreen c={c} staff={accounts} setStaff={setAccounts} user={user} restaurant={restaurant} onPasswordChanged={onAccountPasswordChanged} />}
       {activeView === "more" && <MoreScreen c={c} user={user} restaurant={restaurant} setView={setView} isDark={isDark} setIsDark={setIsDark} onSignOut={signOut} onSwitchWorkspace={switchWorkspace} />}
       {activeView === "settings" && <SettingsScreen c={c} user={user} isDark={isDark} setIsDark={setIsDark} lang={lang} setLang={setLang} restaurant={restaurant} setRestaurant={updateRestaurant} tables={tables} setTables={setTables} accounts={accounts} setAccounts={setAccounts} onPasswordChanged={onAccountPasswordChanged} />}
-      {activeView === "orders" && <OrderingScreen c={c} products={products} setProducts={setProducts} orderDraft={orderDraft} setOrderDraft={setOrderDraft} restaurant={restaurant} />}
       {activeView === "followups" && (user.role === "owner" || user.role === "waiter") && <FollowUpsScreen c={c} reservations={reservations} setReservations={setReservations} restaurant={restaurant} setView={setView} />}
     </div>
   );
