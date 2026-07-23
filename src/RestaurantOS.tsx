@@ -575,9 +575,12 @@ function normalizeCode(s) {
   return (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
+/* Who may see AND post in a channel. General is for everyone; Floor is owner +
+   waiters; Kitchen is owner + chefs. Visibility and posting use the same rule —
+   you see exactly the channels you're allowed to write in. */
 function canPost(channel, role) {
   if (channel === "general") return true;
-  if (channel === "floor") return role === "owner";
+  if (channel === "floor") return role === "owner" || role === "waiter";
   if (channel === "kitchen") return role === "owner" || role === "chef";
   return false;
 }
@@ -1906,16 +1909,18 @@ function ChatScreen({ c, chat, setChat, staff, user, notify }) {
     { key: "general", label: "General", icon: MessageSquare },
     { key: "floor", label: "Floor", icon: UtensilsCrossed },
     { key: "kitchen", label: "Kitchen", icon: ChefHat },
-  ];
+  ].filter((ch) => canPost(ch.key, user.role));
   const me = staff.find((s) => s.id === user.id);
-  const allowed = canPost(channel, user.role);
-  const messages = chat[channel] || [];
+  // If the selected channel isn't visible to this role, fall back to General.
+  const activeChannel = channels.some((ch) => ch.key === channel) ? channel : "general";
+  const allowed = canPost(activeChannel, user.role);
+  const messages = chat[activeChannel] || [];
 
   const send = () => {
     if (!text.trim() || !allowed || !me) return;
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    setChat((prev) => ({ ...prev, [channel]: [...(prev[channel] || []), { id: uid(), staffId: me.id, text, time }] }));
-    notify("chat", `${me.name} ${tr("posted in")} #${channel}: "${text.length > 40 ? text.slice(0, 40) + "…" : text}"`);
+    setChat((prev) => ({ ...prev, [activeChannel]: [...(prev[activeChannel] || []), { id: uid(), staffId: me.id, text, time }] }));
+    notify("chat", `${me.name} ${tr("posted in")} #${activeChannel}: "${text.length > 40 ? text.slice(0, 40) + "…" : text}"`);
     setText("");
   };
 
@@ -1925,7 +1930,7 @@ function ChatScreen({ c, chat, setChat, staff, user, notify }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         {channels.map((ch) => {
           const Icon = ch.icon;
-          const active = channel === ch.key;
+          const active = activeChannel === ch.key;
           return (
             <button key={ch.key} onClick={() => setChannel(ch.key)} style={{
               flex: 1, padding: "12px 6px", borderRadius: 16, cursor: "pointer",
@@ -1969,7 +1974,7 @@ function ChatScreen({ c, chat, setChat, staff, user, notify }) {
         {allowed ? (
           <div style={{ display: "flex", gap: 8 }}>
             <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}
-              placeholder={`${tr("Message")} #${channel}`}
+              placeholder={`${tr("Message")} #${activeChannel}`}
               style={{ flex: 1, minWidth: 0, padding: "12px 14px", borderRadius: 14, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, fontSize: 16, outline: "none", boxSizing: "border-box" }} />
             <button onClick={send} style={{ width: 46, borderRadius: 14, border: "none", background: c.cta, color: c.ctaText, cursor: "pointer" }}>
               <ChevronRight size={18} style={{ margin: "0 auto" }} />
