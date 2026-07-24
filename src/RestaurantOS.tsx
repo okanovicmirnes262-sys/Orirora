@@ -237,12 +237,16 @@ const HR = {
   "Create account": "Izradi račun",
   "added": "je dodan/a",
   "ORDIORA login for": "ORDIORA prijava za",
-  "Share these login details with them — they sign in with the restaurant name and this password. You can view the password again anytime from the Team list.": "Podijelite ove podatke za prijavu s njima — prijavljuju se nazivom restorana i ovom lozinkom. Lozinku možete ponovno vidjeti u popisu Tim.",
+  "Share these login details with them — they sign in with the restaurant name and this password. Save it now: for their security it can't be shown again, only reset.": "Podijelite ove podatke za prijavu s njima — prijavljuju se nazivom restorana i ovom lozinkom. Spremite je sada: radi sigurnosti se više ne može prikazati, samo ponovno postaviti.",
+  "password updated": "lozinka ažurirana",
   "RESTAURANT": "RESTORAN",
   "PASSWORD": "LOZINKA",
   "Copy details": "Kopiraj podatke",
   "Done": "Gotovo",
   "Change": "Promijeni",
+  "Reset": "Resetiraj",
+  "Saving…": "Spremam…",
+  "Password is hidden for security — reset it if lost.": "Lozinka je skrivena radi sigurnosti — resetirajte je ako se izgubi.",
   "Change password · ": "Promjena lozinke · ",
   "Set a new password and share it with them. It replaces their old one immediately.": "Postavite novu lozinku i podijelite je s njima. Odmah zamjenjuje staru.",
   "They sign in with the restaurant name and this password.": "Prijavljuju se nazivom restorana i ovom lozinkom.",
@@ -541,6 +545,61 @@ function generateRecoveryCode() {
 /* Normalise a recovery code for comparison (case-insensitive, ignore dashes/spaces). */
 function normalizeCode(s) {
   return (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Password hashing (PBKDF2 · SHA-256 via the Web Crypto API)          */
+/* ------------------------------------------------------------------ */
+/*  Passwords are NEVER stored in plaintext. Each account keeps
+    { pwSalt, pwHash } as hex strings; the raw password only ever exists
+    in memory long enough to hash it (and to show once at creation/reset).
+    Because login resolves an account by password alone, verification
+    hashes the typed password against each account's own salt.
+    Requires a secure context (https or localhost) for crypto.subtle. */
+
+const PW_ITERATIONS = 100000;
+
+function bytesToHex(bytes) {
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function hexToBytes(hex) {
+  const clean = (hex || "").trim();
+  const out = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(clean.substr(i * 2, 2), 16);
+  return out;
+}
+async function derivePwHash(plain, saltBytes) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(plain), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt: saltBytes, iterations: PW_ITERATIONS, hash: "SHA-256" },
+    keyMaterial, 256,
+  );
+  return bytesToHex(new Uint8Array(bits));
+}
+/* Returns { pwSalt, pwHash } hex for a fresh random salt. */
+async function hashPassword(plain) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const pwHash = await derivePwHash(plain, salt);
+  return { pwSalt: bytesToHex(salt), pwHash };
+}
+/* True if `plain` matches the account's stored credential. Supports both hashed
+   accounts ({pwSalt,pwHash}) and legacy plaintext accounts (pre-migration). */
+async function verifyPassword(plain, account) {
+  if (!account) return false;
+  if (account.pwHash && account.pwSalt) {
+    const hash = await derivePwHash(plain, hexToBytes(account.pwSalt));
+    return hash.length === account.pwHash.length && hash === account.pwHash;
+  }
+  if (typeof account.password === "string") return account.password === plain; // legacy
+  return false;
+}
+/* Copy of an account with a hashed password and no plaintext field. */
+async function withHashedPassword(account, plain) {
+  const { pwSalt, pwHash } = await hashPassword(plain);
+  const next = { ...account, pwSalt, pwHash };
+  delete next.password;
+  return next;
 }
 
 /* Who may see AND post in a channel. General is for everyone; Floor is owner +
@@ -2113,9 +2172,9 @@ function AnalyticsScreen({ c, reservations, shifts, staff, user }) {
 /*  Team / Staff                                                        */
 /* ------------------------------------------------------------------ */
 
-function CredentialsModal({ c, account, restaurant, onClose }) {
+function CredentialsModal({ c, account, password, reset, restaurant, onClose }) {
   const [copied, setCopied] = useState(false);
-  const text = `${tr("ORDIORA login for")} ${restaurant.name}\n${tr("Restaurant")}: ${restaurant.name}\n${tr("Password")}: ${account.password}`;
+  const text = `${tr("ORDIORA login for")} ${restaurant.name}\n${tr("Restaurant")}: ${restaurant.name}\n${tr("Password")}: ${password}`;
   const copy = () => {
     copyToClipboard(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
   };
@@ -2125,13 +2184,13 @@ function CredentialsModal({ c, account, restaurant, onClose }) {
         <div style={{ width: 48, height: 48, borderRadius: 14, background: c.green + "1A", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
           <CheckCircle2 size={22} color={c.green} />
         </div>
-        <div style={{ fontWeight: 700, fontSize: 18, color: c.text, marginBottom: 4 }}>{account.name} {tr("added")}</div>
-        <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 18 }}>{tr("Share these login details with them — they sign in with the restaurant name and this password. You can view the password again anytime from the Team list.")}</div>
+        <div style={{ fontWeight: 700, fontSize: 18, color: c.text, marginBottom: 4 }}>{reset ? `${account.name} · ${tr("password updated")}` : `${account.name} ${tr("added")}`}</div>
+        <div style={{ fontSize: 13.5, color: c.textSub, marginBottom: 18 }}>{tr("Share these login details with them — they sign in with the restaurant name and this password. Save it now: for their security it can't be shown again, only reset.")}</div>
         <div style={{ background: c.surfaceAlt, borderRadius: 14, padding: 16, marginBottom: 18 }}>
           <div style={{ fontSize: 11, color: c.textFaint, fontWeight: 700, letterSpacing: "0.05em", marginBottom: 3 }}>{tr("RESTAURANT")}</div>
           <div style={{ fontSize: 14.5, color: c.text, fontWeight: 600, marginBottom: 12 }}>{restaurant.name}</div>
           <div style={{ fontSize: 11, color: c.textFaint, fontWeight: 700, letterSpacing: "0.05em", marginBottom: 3 }}>{tr("PASSWORD")}</div>
-          <div style={{ fontSize: 14.5, color: c.text, fontWeight: 600, fontFamily: "monospace" }}>{account.password}</div>
+          <div style={{ fontSize: 14.5, color: c.text, fontWeight: 600, fontFamily: "monospace" }}>{password}</div>
         </div>
         <PrimaryButton c={c} full onClick={copy} style={{ marginBottom: 10 }}>
           {copied ? <><Check size={16} /> {tr("Copied")}</> : <><Copy size={16} /> {tr("Copy details")}</>}
@@ -2173,35 +2232,43 @@ function StaffScreen({ c, staff, setStaff, user, restaurant, onPasswordChanged }
   const canManage = user.role === "owner";
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: "", role: "waiter", phone: "" });
-  const [justAdded, setJustAdded] = useState(null);
-  const [revealed, setRevealed] = useState({});
+  const [justAdded, setJustAdded] = useState(null); // { account, password (plaintext, shown once), reset }
   const [removeTarget, setRemoveTarget] = useState(null);
   const [pwTarget, setPwTarget] = useState(null); // staff member whose password is being changed
   const [pwValue, setPwValue] = useState("");
   const [pwErr, setPwErr] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
 
   const openReset = (s) => { setPwErr(""); setPwValue(generatePassword()); setPwTarget(s); };
-  const saveReset = () => {
+  const saveReset = async () => {
     const next = pwValue.trim();
     if (next.length < 6) { setPwErr(tr("At least 6 characters.")); return; }
-    if (staff.some((a) => a.id !== pwTarget.id && a.password === next)) { setPwErr(tr("That password is already in use by another account.")); return; }
-    setStaff((prev) => prev.map((a) => a.id === pwTarget.id ? { ...a, password: next } : a));
-    if (onPasswordChanged) onPasswordChanged(pwTarget.id, next);
-    setRevealed((r) => ({ ...r, [pwTarget.id]: true }));
+    // Passwords are the login discriminator within a restaurant — keep them unique.
+    for (const a of staff) {
+      if (a.id !== pwTarget.id && await verifyPassword(next, a)) { setPwErr(tr("That password is already in use by another account.")); return; }
+    }
+    setPwSaving(true);
+    const creds = await hashPassword(next);
+    const target = pwTarget;
+    setStaff((prev) => prev.map((a) => a.id === target.id ? { ...a, pwSalt: creds.pwSalt, pwHash: creds.pwHash, password: undefined } : a));
+    if (onPasswordChanged) onPasswordChanged(target.id, creds);
+    setPwSaving(false);
     setPwTarget(null);
+    setJustAdded({ account: target, password: next, reset: true }); // show once
   };
 
-  const add = () => {
+  const add = async () => {
     if (!form.name.trim()) return;
-    const account = {
+    const plain = generateUniquePassword(staff);
+    const base = {
       id: uid(), name: form.name.trim(), role: form.role, phone: form.phone.trim(),
       email: generateEmail(form.name, restaurant.slug, staff),
-      password: generateUniquePassword(staff),
     };
+    const account = await withHashedPassword(base, plain);
     setStaff((prev) => [...prev, account]);
     setForm({ name: "", role: "waiter", phone: "" });
     setAdding(false);
-    setJustAdded(account);
+    setJustAdded({ account, password: plain, reset: false }); // show once
   };
   const confirmRemove = () => {
     setStaff((prev) => prev.filter((s) => s.id !== removeTarget.id));
@@ -2240,14 +2307,11 @@ function StaffScreen({ c, staff, setStaff, user, restaurant, onPasswordChanged }
             {canManage && (
               <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.border}`, display: "flex", alignItems: "center", gap: 8 }}>
                 <KeyRound size={13} color={c.textFaint} />
-                <span style={{ fontSize: 12.5, color: c.textSub, fontFamily: revealed[s.id] ? "monospace" : "inherit", flex: 1 }}>
-                  {revealed[s.id] ? s.password : "••••••••••"}
+                <span style={{ fontSize: 12.5, color: c.textFaint, flex: 1 }}>
+                  {tr("Password is hidden for security — reset it if lost.")}
                 </span>
-                <button onClick={() => setRevealed((r) => ({ ...r, [s.id]: !r[s.id] }))} style={{ background: "none", border: "none", cursor: "pointer", color: c.textFaint, display: "flex" }}>
-                  {revealed[s.id] ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
                 <button onClick={() => openReset(s)} style={{ background: "none", border: `1px solid ${c.border}`, borderRadius: 8, padding: "4px 10px", cursor: "pointer", color: c.textSub, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
-                  {tr("Change")}
+                  {tr("Reset")}
                 </button>
               </div>
             )}
@@ -2287,11 +2351,11 @@ function StaffScreen({ c, staff, setStaff, user, restaurant, onPasswordChanged }
             <GhostButton c={c} full onClick={() => setPwValue(generatePassword())} style={{ marginBottom: 12 }}>
               <KeyRound size={15} /> {tr("Generate a new one")}
             </GhostButton>
-            <PrimaryButton c={c} full disabled={pwValue.trim().length < 6} onClick={saveReset}>{tr("Save password")}</PrimaryButton>
+            <PrimaryButton c={c} full disabled={pwValue.trim().length < 6 || pwSaving} onClick={saveReset}>{pwSaving ? <><Loader2 size={16} className="spin" /> {tr("Saving…")}</> : tr("Save password")}</PrimaryButton>
           </div>
         </div>
       )}
-      {justAdded && <CredentialsModal c={c} account={justAdded} restaurant={restaurant} onClose={() => setJustAdded(null)} />}
+      {justAdded && <CredentialsModal c={c} account={justAdded.account} password={justAdded.password} reset={justAdded.reset} restaurant={restaurant} onClose={() => setJustAdded(null)} />}
       {removeTarget && (
         <ConfirmDialog c={c} title={LANG === "hr" ? `Ukloniti ${removeTarget.name}?` : `Remove ${removeTarget.name}?`} message={tr("They'll lose access immediately. This can't be undone.")}
           confirmLabel={tr("Remove")} onCancel={() => setRemoveTarget(null)} onConfirm={confirmRemove} />
@@ -2396,16 +2460,19 @@ function SettingsScreen({ c, user, isDark, setIsDark, lang, setLang, restaurant,
     setTimeout(() => setSavedRest(false), 1500);
   };
 
-  const changePassword = () => {
+  const changePassword = async () => {
     setPassErr(""); setPassMsg("");
     const me = accounts.find((a) => a.id === user.id);
-    if (!me || me.password !== curPass) { setPassErr(tr("Current password is incorrect.")); return; }
+    if (!me || !(await verifyPassword(curPass, me))) { setPassErr(tr("Current password is incorrect.")); return; }
     if (newPass.length < 6) { setPassErr(tr("New password must be at least 6 characters.")); return; }
     if (newPass !== confirmPass) { setPassErr(tr("New passwords don't match.")); return; }
     // Passwords are the login discriminator within a restaurant — keep them unique.
-    if (accounts.some((a) => a.id !== user.id && a.password === newPass)) { setPassErr(tr("That password is already in use by another account. Choose a different one.")); return; }
-    setAccounts((prev) => prev.map((a) => a.id === user.id ? { ...a, password: newPass } : a));
-    if (onPasswordChanged) onPasswordChanged(user.id, newPass);
+    for (const a of accounts) {
+      if (a.id !== user.id && await verifyPassword(newPass, a)) { setPassErr(tr("That password is already in use by another account. Choose a different one.")); return; }
+    }
+    const creds = await hashPassword(newPass);
+    setAccounts((prev) => prev.map((a) => a.id === user.id ? { ...a, pwSalt: creds.pwSalt, pwHash: creds.pwHash, password: undefined } : a));
+    if (onPasswordChanged) onPasswordChanged(user.id, creds);
     setCurPass(""); setNewPass(""); setConfirmPass("");
     setPassMsg(tr("Password updated."));
     setTimeout(() => setPassMsg(""), 2000);
@@ -2751,11 +2818,21 @@ export default function App() {
       loadKey("restaurantos:remembered", null, false),
       loadKey(`restaurantos:${slug}:notifSeenAt`, null, false), // device-local "seen" marker
     ]);
+    // One-time migration: hash any legacy plaintext passwords, then persist so
+    // plaintext never lingers in the cloud. We hold the plaintext (it's what was
+    // stored), so hashing here preserves everyone's ability to sign in.
+    let migratedAccs = accs;
+    if (Array.isArray(accs) && accs.some((a) => a && a.password != null && !a.pwHash)) {
+      migratedAccs = await Promise.all(accs.map((a) =>
+        (a && a.password != null && !a.pwHash) ? withHashedPassword(a, a.password) : Promise.resolve(a)
+      ));
+      await saveKey(`restaurantos:${slug}:accounts`, migratedAccs, true);
+    }
     // Record the loaded references BEFORE applying them so the persist effects
     // recognise these exact values as "just hydrated" and skip writing them back.
-    lastLoaded.current = { restaurant: rest, accounts: accs, tables: tbls, reservations: res, shifts: sh, chat: ch, notifications: notifs };
+    lastLoaded.current = { restaurant: rest, accounts: migratedAccs, tables: tbls, reservations: res, shifts: sh, chat: ch, notifications: notifs };
     setRestaurant(rest);
-    setAccounts(accs);
+    setAccounts(migratedAccs);
     setTables(tbls);
     setReservations(res);
     setShifts(sh);
@@ -2767,10 +2844,14 @@ export default function App() {
     setNotifSeenAt(typeof seenStored === "number"
       ? seenStored
       : (notifs || []).reduce((m, n) => (n && n.read && n.time > m ? n.time : m), 0));
-    if (remembered && remembered.slug === slug) {
-      const match = accs.find((a) => a.email === remembered.email && a.password === remembered.password);
+    // Auto-login from a device-local "remember me" token. The token stores the
+    // account's pwHash (never plaintext); a password change rotates the hash and
+    // invalidates it. Legacy tokens (plaintext) simply don't match → sign in once.
+    if (remembered && remembered.slug === slug && remembered.pwHash) {
+      const match = migratedAccs.find((a) => a.email === remembered.email && a.pwHash && a.pwHash === remembered.pwHash);
       if (match) setUser(match);
     }
+    return migratedAccs;
   };
 
   useEffect(() => {
@@ -2836,14 +2917,15 @@ export default function App() {
     setNotifications((prev) => [...prev, { id: uid(), type, text, time: Date.now(), read: false }].slice(-50));
   };
 
-  const completeSetup = ({ restaurant: r, owner, tables: t, remember }) => {
+  const completeSetup = async ({ restaurant: r, owner, tables: t, remember }) => {
     const slug = generateSlug(r.name, registry.map((w) => w.slug));
     const ws = { slug, name: r.name };
     const recoveryCode = generateRecoveryCode();
     const restaurantWithSlug = { ...r, slug, recoveryCode };
+    const ownerHashed = await withHashedPassword(owner, owner.password);
     setRestaurant(restaurantWithSlug);
     setNewRecovery(recoveryCode);
-    setAccounts([owner]);
+    setAccounts([ownerHashed]);
     setTables(t);
     // Start the new restaurant empty — otherwise a previous session's data (still
     // in memory after Sign out, which doesn't clear it) would leak into it.
@@ -2851,18 +2933,18 @@ export default function App() {
     setShifts([]);
     setChat({ general: [], floor: [], kitchen: [] });
     setNotifications([]);
-    setUser(owner);
+    setUser(ownerHashed);
     setWorkspace(ws);
     setCreatingNew(false);
     setView("dashboard");
     saveKey(`restaurantos:${slug}:restaurant`, restaurantWithSlug, true);
-    saveKey(`restaurantos:${slug}:accounts`, [owner], true);
+    saveKey(`restaurantos:${slug}:accounts`, [ownerHashed], true);
     saveKey(`restaurantos:${slug}:tables`, t, true);
     saveKey("restaurantos:workspace", ws, false);
     const nextRegistry = [...registry, ws];
     setRegistry(nextRegistry);
     saveKey("restaurantos:registry", nextRegistry, true);
-    if (remember) saveKey("restaurantos:remembered", { slug, email: owner.email, password: owner.password }, false);
+    if (remember) saveKey("restaurantos:remembered", { slug, email: ownerHashed.email, pwHash: ownerHashed.pwHash }, false);
   };
 
   // Access requires the EXACT restaurant name plus a valid password. The
@@ -2873,14 +2955,18 @@ export default function App() {
     const entry = registry.find((r) => (r.name || "").trim().toLowerCase() === target);
     if (!entry) return { ok: false };
     const accs = await loadKey(`restaurantos:${entry.slug}:accounts`, [], true);
-    const account = accs.find((a) => a.password === password);
-    if (!account) return { ok: false };
-    await loadWorkspaceData(entry.slug);
+    let match = null;
+    for (const a of accs) { if (await verifyPassword(password, a)) { match = a; break; } }
+    if (!match) return { ok: false };
+    // loadWorkspaceData migrates legacy plaintext → hashed and returns the result;
+    // pick the up-to-date (hashed) account object from it so state stays consistent.
+    const migrated = await loadWorkspaceData(entry.slug);
+    const account = (migrated || []).find((a) => a.email === match.email) || match;
     setWorkspace(entry);
     setUser(account);
     setView("dashboard");
     saveKey("restaurantos:workspace", entry, false);
-    if (remember) saveKey("restaurantos:remembered", { slug: entry.slug, email: account.email, password: account.password }, false);
+    if (remember) saveKey("restaurantos:remembered", { slug: entry.slug, email: account.email, pwHash: account.pwHash }, false);
     else saveKey("restaurantos:remembered", null, false);
     return { ok: true };
   };
@@ -2898,8 +2984,11 @@ export default function App() {
     const accs = await loadKey(`restaurantos:${entry.slug}:accounts`, [], true);
     const idx = accs.findIndex((a) => a.role === "owner");
     if (idx === -1) return { ok: false, error: tr("No owner account found.") };
-    if (accs.some((a, i) => i !== idx && a.password === newPassword)) return { ok: false, error: tr("That password is already in use by a staff account. Choose a different one.") };
-    const nextAccs = accs.map((a, i) => i === idx ? { ...a, password: newPassword } : a);
+    for (let i = 0; i < accs.length; i++) {
+      if (i !== idx && await verifyPassword(newPassword, accs[i])) return { ok: false, error: tr("That password is already in use by a staff account. Choose a different one.") };
+    }
+    const creds = await hashPassword(newPassword);
+    const nextAccs = accs.map((a, i) => i === idx ? { ...a, pwSalt: creds.pwSalt, pwHash: creds.pwHash, password: undefined } : a);
     await saveKey(`restaurantos:${entry.slug}:accounts`, nextAccs, true);
     return { ok: true };
   };
@@ -2927,12 +3016,12 @@ export default function App() {
 
   // When an account's password changes, keep the signed-in user object and this
   // device's "remember me" token in sync so auto-login doesn't silently break.
-  const onAccountPasswordChanged = (accountId, newPassword) => {
+  const onAccountPasswordChanged = (accountId, creds) => {
     if (!user || accountId !== user.id) return;
-    setUser((u) => (u ? { ...u, password: newPassword } : u));
+    setUser((u) => (u ? { ...u, pwSalt: creds.pwSalt, pwHash: creds.pwHash, password: undefined } : u));
     const remembered = loadLocal("restaurantos:remembered", null);
     if (remembered && workspace && remembered.slug === workspace.slug && remembered.email === user.email) {
-      saveKey("restaurantos:remembered", { ...remembered, password: newPassword }, false);
+      saveKey("restaurantos:remembered", { slug: remembered.slug, email: remembered.email, pwHash: creds.pwHash }, false);
     }
   };
 

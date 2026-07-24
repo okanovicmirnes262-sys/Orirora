@@ -9,9 +9,11 @@ data syncs across every device that opens the same restaurant.
 - **Workspaces** — set up one or more restaurants, each with its own data.
 - **Roles** — owner, waiter, chef, with role-scoped permissions.
 - **Access & recovery** — sign in with the exact restaurant name + password
-  (the restaurant list is never shown). The owner can change any staff member's
-  password, and can reset their own via a recovery code (shown at setup, viewable
-  in Settings) using "Forgot password?" on the sign-in screen.
+  (the restaurant list is never shown). Passwords are stored one-way hashed
+  (PBKDF2 · SHA-256), never in plaintext. The owner can reset any staff member's
+  password (the new one is shown once), and can reset their own via a recovery
+  code (shown at setup, viewable in Settings) using "Forgot password?" on the
+  sign-in screen.
 - **Reservations** — create/edit bookings with table conflict detection.
 - **Shifts** — weekly staff scheduling.
 - **Chat** — general / floor / kitchen channels.
@@ -68,15 +70,18 @@ restaurant, the "remember me" session, and the light/dark theme.
 
 ## Security
 
-This build keeps the app's original account model: the owner creates staff and
-the app generates each person's email and password, which the owner can view
-and share. Because that "reveal & share the login" feature requires passwords
-to be **recoverable**, they are stored as-is (not one-way hashed), and the
-`kv_store` policy grants the `anon` key full access. This is fine for a demo or
-internal tool, but for a public production deployment you should migrate
-authentication to **Supabase Auth** (hashed passwords, email verification,
-password reset) and tighten the Row Level Security policies accordingly. The
-schema file documents this in more detail.
+The owner creates staff and the app generates each person's email and password.
+Passwords are **one-way hashed** (PBKDF2 · SHA-256 with a per-account salt, via
+the Web Crypto API) — they are never stored in plaintext, so a generated
+password is shown **once** at creation/reset and cannot be viewed again, only
+reset. Any legacy plaintext passwords from older data are migrated to hashes
+automatically the first time that restaurant's data loads.
+
+Still open for a public production deployment: the `kv_store` policy grants the
+`anon` key full access, so you should migrate authentication to **Supabase Auth**
+(email verification, server-side password reset) and tighten the Row Level
+Security policies accordingly. The schema file documents this in more detail.
+Password hashing requires a secure context (https or localhost).
 
 ## Mobile
 
