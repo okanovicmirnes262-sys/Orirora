@@ -47,20 +47,6 @@ const HR = {
   "Resetting…": "Postavljanje…",
   "Back to sign in": "Natrag na prijavu",
   "Incorrect restaurant name or password.": "Netočan naziv restorana ili lozinka.",
-
-  // — Subscription / paywall —
-  "Activate your subscription": "Aktivirajte pretplatu",
-  "ORDIORA requires an active subscription. Start your free trial, then paste your license key to unlock this restaurant.": "ORDIORA zahtijeva aktivnu pretplatu. Pokrenite besplatnu probu, zatim zalijepite licencni ključ da otključate ovaj restoran.",
-  "Your subscription is inactive. Renew it to keep using ORDIORA.": "Vaša pretplata nije aktivna. Obnovite je da nastavite koristiti ORDIORA.",
-  "Start free trial": "Pokreni besplatnu probu",
-  "After you subscribe, your license key appears on the Whop confirmation page and in your email.": "Nakon pretplate, licencni ključ pojavljuje se na Whop stranici potvrde i u vašem e-mailu.",
-  "License key": "Licencni ključ",
-  "Paste your license key": "Zalijepite licencni ključ",
-  "Activate": "Aktiviraj",
-  "Checking…": "Provjeravam…",
-  "That license key isn't valid or is inactive. Check it, or start a subscription.": "Licencni ključ nije valjan ili nije aktivan. Provjerite ga ili pokrenite pretplatu.",
-  "Couldn't reach the server. Try again.": "Nije moguće doći do servera. Pokušajte ponovno.",
-  "Verifying your subscription…": "Provjeravam vašu pretplatu…",
   "Enter your restaurant name and password.": "Unesite naziv restorana i lozinku.",
   "Password updated — you can sign in now.": "Lozinka je ažurirana — sada se možete prijaviti.",
   "Enter your restaurant name and recovery code.": "Unesite naziv restorana i kod za oporavak.",
@@ -624,24 +610,6 @@ function canPost(channel, role) {
   if (channel === "floor") return role === "owner" || role === "waiter";
   if (channel === "kitchen") return role === "owner" || role === "chef";
   return false;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Subscription / entitlement (Whop)                                  */
-/* ------------------------------------------------------------------ */
-/* The app is gated behind an active Whop subscription. Clients NEVER sign in
-   with Whop — login stays restaurant name + password. Entitlement is proven by
-   a license key the owner pastes once; a serverless function (/api/whop/*)
-   validates it server-side (the Whop API key never reaches the browser) and we
-   cache the result on the restaurant record as { license, entitledUntil }, so
-   staff and every later login need nothing. */
-const WHOP_CHECKOUT_URL = "https://whop.com/checkout/plan_NwB6iHkwaNvEM";
-const ENTITLEMENT_WINDOW_MS = 24 * 60 * 60 * 1000; // re-check access at least daily
-
-function restaurantEntitled(r) {
-  return !!r
-    && typeof r.license === "string" && r.license.length > 0
-    && typeof r.entitledUntil === "number" && r.entitledUntil > Date.now();
 }
 
 function statusColor(c, status) {
@@ -2802,70 +2770,6 @@ function ConfigScreen({ c, isDark, setIsDark, lang, setLang }) {
 /*  App root                                                            */
 /* ------------------------------------------------------------------ */
 
-/* ------------------------------------------------------------------ */
-/*  Paywall — shown after login when the restaurant has no active sub   */
-/* ------------------------------------------------------------------ */
-/* No Whop login here: the owner subscribes on Whop (checkout), then pastes the
-   license key once. Staff never see this — entitlement is cached on the
-   restaurant, so once the owner activates, everyone is in. */
-function PaywallScreen({ c, isDark, setIsDark, lang, setLang, restaurant, onActivate, onSignOut, inactive }) {
-  const [key, setKey] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const activate = async () => {
-    setError("");
-    if (!key.trim()) { setError(tr("Paste your license key")); return; }
-    setLoading(true);
-    const res = await onActivate(key.trim());
-    setLoading(false);
-    if (!res || !res.ok) setError(res?.error || tr("That license key isn't valid or is inactive. Check it, or start a subscription."));
-  };
-
-  return (
-    <div style={{ minHeight: "100dvh", background: c.bg, display: "flex", flexDirection: "column", fontFamily: fontStack().body }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "calc(18px + env(safe-area-inset-top, 0px)) 20px 18px" }}>
-        <LangToggle c={c} lang={lang} setLang={setLang} />
-        <IconBtn c={c} onClick={() => setIsDark(!isDark)}>{isDark ? <Sun size={17} /> : <Moon size={17} />}</IconBtn>
-      </div>
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 20px 40px" }}>
-        <div style={{ width: "100%", maxWidth: 400 }}>
-          <div style={{ textAlign: "center", marginBottom: 22 }}>
-            <div style={{ margin: "0 auto 4px", width: 120 }}>
-              <OrdioraLogo c={c} size={120} />
-            </div>
-            <div style={{ fontFamily: fontStack().display, fontSize: 24, fontWeight: 600, color: c.text, marginTop: 6 }}>{tr("Activate your subscription")}</div>
-            <div style={{ color: c.textSub, marginTop: 8, fontSize: 14, lineHeight: 1.55 }}>
-              {inactive
-                ? tr("Your subscription is inactive. Renew it to keep using ORDIORA.")
-                : tr("ORDIORA requires an active subscription. Start your free trial, then paste your license key to unlock this restaurant.")}
-            </div>
-            {restaurant?.name && <div style={{ marginTop: 10, fontSize: 12.5, color: c.textFaint }}>{tr("Restaurant")}: {restaurant.name}</div>}
-          </div>
-
-          <a href={WHOP_CHECKOUT_URL} target="_blank" rel="noopener" style={{ textDecoration: "none", display: "block" }}>
-            <div style={{ background: c.cta, color: c.ctaText, borderRadius: 14, padding: "13px", textAlign: "center", fontWeight: 600, fontSize: 15 }}>
-              {tr("Start free trial")}
-            </div>
-          </a>
-          <div style={{ fontSize: 12, color: c.textFaint, textAlign: "center", margin: "8px 0 20px", lineHeight: 1.5 }}>
-            {tr("After you subscribe, your license key appears on the Whop confirmation page and in your email.")}
-          </div>
-
-          <TextInput c={c} label={tr("License key")} value={key} onChange={(v) => { setKey(v); setError(""); }} placeholder={tr("Paste your license key")} error={error} />
-          <PrimaryButton c={c} full disabled={loading} onClick={activate}>
-            {loading ? <><Loader2 size={16} className="spin" /> {tr("Checking…")}</> : tr("Activate")}
-          </PrimaryButton>
-
-          <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
-            <button onClick={onSignOut} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, fontSize: 13, fontWeight: 600 }}>{tr("Sign out")}</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function App() {
   const [isDark, setIsDark] = useState(true);
   const [lang, setLang] = useState("hr"); // "hr" | "en" — device-local UI language
@@ -2889,9 +2793,6 @@ export default function App() {
   const [notifications, setNotifications] = useState([]);
   const [now, setNow] = useState(() => Date.now());  // minute tick for reservation expiry (device-local)
   const [notifSeenAt, setNotifSeenAt] = useState(0);  // device-local "notifications seen up to" timestamp
-  const [entitled, setEntitled] = useState(false);    // does the current restaurant have an active Whop subscription
-  const [subInactive, setSubInactive] = useState(false); // had a license but it's now invalid/expired (message tweak)
-  const [verifying, setVerifying] = useState(false);  // re-validating a stored license before deciding the gate
 
   // Holds the exact object references most recently hydrated from the cloud, per
   // slice. A persist effect saves only when its slice DIFFERS from this snapshot
@@ -3134,67 +3035,6 @@ export default function App() {
     });
   };
 
-  // Local entitlement: derived from the loaded restaurant record (cached window).
-  // Gives paying restaurants instant access without waiting on the network.
-  useEffect(() => { setEntitled(restaurantEntitled(restaurant)); }, [restaurant]);
-
-  // Background re-validation of a stored license, so a cancelled/expired
-  // subscription loses access (and a renewed one regains it) on next open.
-  useEffect(() => {
-    if (!user || !restaurant || !restaurant.slug) return;
-    if (!restaurant.license) { setSubInactive(false); setVerifying(false); return; }
-    let cancelled = false;
-    const needsVerify = !restaurantEntitled(restaurant); // license present but window lapsed
-    if (needsVerify) setVerifying(true);
-    (async () => {
-      try {
-        const resp = await fetch("/api/whop/status", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ license: restaurant.license }),
-        });
-        const data = await resp.json().catch(() => ({}));
-        if (cancelled) return;
-        if (data && data.valid) {
-          setSubInactive(false);
-          setEntitled(true);
-          const until = data.entitledUntil || (Date.now() + ENTITLEMENT_WINDOW_MS);
-          if (until !== restaurant.entitledUntil) updateRestaurant({ ...restaurant, entitledUntil: until });
-        } else {
-          setSubInactive(true);
-          setEntitled(false);
-          if (restaurant.entitledUntil) updateRestaurant({ ...restaurant, entitledUntil: 0 });
-        }
-      } catch (e) {
-        // Network blip → keep whatever local entitlement we had; don't lock out.
-      } finally {
-        if (!cancelled) setVerifying(false);
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, restaurant?.slug]);
-
-  // Called from the paywall when the owner pastes a license key.
-  const activateLicense = async (licenseKey) => {
-    try {
-      const resp = await fetch("/api/whop/activate", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ license: licenseKey }),
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (resp.ok && data && data.valid) {
-        const until = data.entitledUntil || (Date.now() + ENTITLEMENT_WINDOW_MS);
-        if (restaurant) updateRestaurant({ ...restaurant, license: licenseKey, entitledUntil: until });
-        setSubInactive(false);
-        setEntitled(true);
-        return { ok: true };
-      }
-      return { ok: false };
-    } catch (e) {
-      return { ok: false, error: tr("Couldn't reach the server. Try again.") };
-    }
-  };
-
   const createReservation = (r) => {
     setReservations((prev) => [...prev, r]);
     notify("reservation", `${tr("New reservation:")} ${r.name} · ${r.date} ${tr("at")} ${r.time} (${r.table})`);
@@ -3258,25 +3098,6 @@ export default function App() {
           <GhostButton c={c} onClick={signOut}>{tr("Sign out")}</GhostButton>
         </div>
       </div>
-    );
-  }
-
-  // Subscription gate: logged in with a valid restaurant, but no active Whop
-  // subscription → paywall (or a brief spinner while re-checking a stored key).
-  // Login itself is unchanged; this only gates *using* the app, and never asks
-  // the client to sign in with Whop.
-  if (!entitled) {
-    if (verifying) {
-      return (
-        <div style={{ minHeight: "100dvh", background: c.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, fontFamily: fontStack().body }}>
-          <Loader2 size={24} color={c.textFaint} className="spin" />
-          <div style={{ color: c.textSub, fontSize: 13.5 }}>{tr("Verifying your subscription…")}</div>
-        </div>
-      );
-    }
-    return (
-      <PaywallScreen c={c} isDark={isDark} setIsDark={setIsDark} lang={lang} setLang={setLang}
-        restaurant={restaurant} onActivate={activateLicense} onSignOut={signOut} inactive={subInactive} />
     );
   }
 

@@ -83,36 +83,6 @@ Still open for a public production deployment: the `kv_store` policy grants the
 Security policies accordingly. The schema file documents this in more detail.
 Password hashing requires a secure context (https or localhost).
 
-## Subscription gate (Whop)
-
-Using the app requires an **active Whop subscription** — but clients never sign in
-with Whop. Login stays **restaurant name + password**; the only Whop touchpoint is a
-one-time checkout. After subscribing, the owner pastes their **license key** once on
-the paywall; a serverless function (`api/whop/*`) validates it against Whop with the
-server-side `WHOP_API_KEY`, and the result is cached on the restaurant record
-(`{ license, entitledUntil }`) so staff and every later login need nothing. Access is
-re-checked on load, so a cancelled subscription loses access.
-
-Validation uses Whop's v2 endpoint
-`POST /api/v2/memberships/{licenseKey}/validate_license` (license key in the path,
-success = HTTP 201; empty metadata so a key isn't locked to one device — the app runs
-on many staff devices under one restaurant).
-
-Setup (owner):
-1. In Whop, make sure the plan (`WHOP_PLAN_ID`) delivers **license keys** to buyers, and
-   create an **API key** (Whop dashboard → Settings → Developer) with read access to
-   memberships.
-2. In the app's **Vercel project → Environment Variables**, set `WHOP_API_KEY` and
-   `WHOP_PLAN_ID` (see `.env.example`), then redeploy. These are server-side only and
-   never reach the browser.
-3. Test with a real license key (from the buyer's Whop "Downloads & Keys"); if a valid
-   key is wrongly rejected, adjust the field parsing in `api/whop/activate.ts`.
-
-Note: this gate stops the normal bypass, but the app is still a client-side SPA whose
-Supabase anon key ships in the bundle with open RLS — a technically skilled person could
-reach the data directly. Fully airtight access control means moving data behind
-authenticated server endpoints and tightening RLS (a larger, separate step).
-
 ## Mobile
 
 The UI is designed for phones and adapts up to a 520px content column on
