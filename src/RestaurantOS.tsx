@@ -1269,15 +1269,6 @@ function LoginScreen({ c, isDark, setIsDark, lang, setLang, onLogin, onRecover, 
               <div style={{ textAlign: "center", fontSize: 12.5, color: c.textFaint, marginTop: 14, lineHeight: 1.6 }}>
                 {tr("New team member? Ask your restaurant owner for your login — they'll share your password with you.")}
               </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "22px 0 18px" }}>
-                <div style={{ flex: 1, height: 1, background: c.border }} />
-                <span style={{ fontSize: 12, color: c.textFaint }}>{tr("or")}</span>
-                <div style={{ flex: 1, height: 1, background: c.border }} />
-              </div>
-              <GhostButton c={c} full onClick={onCreateNew}>
-                <Plus size={15} /> {tr("Set up a new restaurant")}
-              </GhostButton>
             </>
           ) : (
             <>
@@ -2855,6 +2846,16 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Entry mode from the URL: `?mode=signup` opens the create-restaurant wizard
+    // (this is where the Whop post-checkout redirect points); anything else is
+    // login-only. Creating a restaurant is reachable ONLY via this param, so the
+    // bare/login URL can't be used to open a free account. Strip it afterwards so
+    // a refresh doesn't reopen setup.
+    try {
+      const mode = new URLSearchParams(window.location.search).get("mode");
+      if (mode === "signup") setCreatingNew(true);
+      if (mode) window.history.replaceState({}, "", window.location.pathname);
+    } catch (e) { /* no-op */ }
     (async () => {
       const [ws, reg, themePref, langPref] = await Promise.all([
         loadKey("restaurantos:workspace", null, false),
