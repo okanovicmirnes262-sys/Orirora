@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="hr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ORDIORA — Sustav za upravljanje restoranom</title>
+<meta name="description" content="ORDIORA — rezervacije, stolovi, smjene, tim i analitika za restorane. Sve na jednom mjestu, na mobitelu i računalu.">
+<meta name="theme-color" content="#141312">
+<meta property="og:title" content="ORDIORA — Sustav za upravljanje restoranom">
+<meta property="og:description" content="Rezervacije, stolovi, smjene, tim i analitika — sve na jednom mjestu.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 40 40%27%3E%3Ccircle cx=%2720%27 cy=%2720%27 r=%2716.5%27 fill=%27none%27 stroke=%27%232B2B2B%27 stroke-width=%272.4%27 stroke-linecap=%27round%27 stroke-dasharray=%2797 7%27 stroke-dashoffset=%27-14%27 transform=%27rotate(90 20 20)%27/%3E%3Ccircle cx=%2720%27 cy=%2729%27 r=%271.7%27 fill=%27%232B2B2B%27/%3E%3C/svg%3E">
+<style>*{margin:0;padding:0}</style>
+</head>
+<body>
+<style>
+  /* ORDIORA — landing. Monochrome editorial identity from the app:
+     warm off-white ground, graphite ink, serif display (Georgia fallback),
+     Inter body. Deliberately single (light) theme — mirrors the app's light
+     mode. Heavy motion is gated to fine-pointer desktops and disabled under
+     prefers-reduced-motion. */
+  :root{
+    color-scheme: light;
+    --ground:#F4F3F0; --surface:#FFFFFF; --surface-alt:#F6F5F2;
+    --ink:#2B2B2B; --ink-sub:#6E6E6B; --ink-faint:#A6A5A0;
+    --hairline:#E5E3DE; --hairline-strong:#D8D6D0;
+    --dark:#141312; --dark-2:#1E1D1B; --on-dark:#F1EFEA; --on-dark-sub:#9C9A94;
+    --serif:'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+    --sans:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --maxw:1160px;
+  }
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{ margin:0; background:var(--ground); color:var(--ink); font-family:var(--sans);
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; overflow-x:hidden; }
+  a{ color:inherit; text-decoration:none; }
+  .wrap{ width:100%; max-width:var(--maxw); margin:0 auto; padding:0 24px; }
+
+  /* film grain */
+  body::after{ content:""; position:fixed; inset:0; z-index:3; pointer-events:none; opacity:.03;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+
+  .eyebrow{ display:inline-block; font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--ink-sub); border:1px solid var(--hairline-strong); border-radius:999px; padding:5px 13px; background:var(--surface); }
+  h1,h2,h3{ font-family:var(--serif); font-weight:500; margin:0; text-wrap:balance; letter-spacing:.2px; }
+  p{ margin:0; }
+
+  /* ---------- PRELOADER ---------- */
+  #preloader{ position:fixed; inset:0; z-index:200; background:#FFFFFF; display:grid; place-items:center;
+    transition:opacity .6s ease, visibility .6s; }
+  #preloader.done{ opacity:0; visibility:hidden; }
+  .pl-mark{ display:flex; flex-direction:column; align-items:center; gap:16px; }
+  .pl-mark svg{ display:block; }
+  .pl-ring{ fill:none; stroke:#141312; stroke-width:2; stroke-linecap:round;
+    stroke-dasharray:521; stroke-dashoffset:521; animation:plDraw 1.15s cubic-bezier(.6,.05,.2,1) forwards; }
+  .pl-dot{ fill:#141312; opacity:0; animation:plDot .4s ease .95s forwards; }
+  .pl-word{ font-family:var(--serif); font-size:18px; letter-spacing:4px; color:#141312; opacity:0;
+    transform:translateY(6px); animation:plWord .6s ease 1.05s forwards; }
+  @keyframes plDraw{ to{ stroke-dashoffset:0; } }
+  @keyframes plDot{ to{ opacity:1; } }
+  @keyframes plWord{ to{ opacity:1; transform:none; } }
+
+  /* ---------- NAV ---------- */
+  .nav{ position:fixed; inset:0 0 auto 0; z-index:50; display:flex; justify-content:center;
+    transition:background .3s, border-color .3s, backdrop-filter .3s; border-bottom:1px solid transparent; }
+  .nav.scrolled{ background:rgba(244,243,240,.82); backdrop-filter:blur(12px); border-bottom-color:var(--hairline); }
+  .nav-inner{ width:100%; max-width:var(--maxw); display:flex; align-items:center; gap:20px; padding:14px 24px; }
+  .brand{ display:flex; align-items:center; gap:10px; font-family:var(--serif); font-size:20px; letter-spacing:1.5px; }
+  .nav-links{ display:flex; gap:26px; margin-left:14px; }
+  .nav-links a{ font-size:13.5px; color:var(--ink-sub); transition:color .2s; position:relative; }
+  .nav-links a::after{ content:""; position:absolute; left:0; bottom:-4px; height:1px; width:0; background:var(--ink); transition:width .25s; }
+  .nav-links a:hover{ color:var(--ink); } .nav-links a:hover::after{ width:100%; }
+  .nav-right{ margin-left:auto; display:flex; align-items:center; gap:12px; }
+  .lang{ display:flex; border:1px solid var(--hairline-strong); border-radius:999px; overflow:hidden; background:var(--surface); }
+  .lang button{ border:0; background:none; font:inherit; font-size:12px; font-weight:600; color:var(--ink-faint); padding:6px 11px; cursor:pointer; transition:background .2s,color .2s; }
+  .lang button.on{ background:var(--ink); color:var(--on-dark); }
+  .btn{ font:inherit; font-size:13.5px; font-weight:600; border-radius:999px; padding:9px 18px; cursor:pointer;
+    border:1px solid transparent; transition:transform .12s ease, background .2s, box-shadow .2s, color .2s;
+    display:inline-flex; align-items:center; gap:8px; white-space:nowrap; will-change:transform; }
+  .btn:active{ transform:translateY(1px) scale(.98); }
+  .btn-ghost{ background:none; color:var(--ink); border-color:var(--hairline-strong); }
+  .btn-ghost:hover{ background:var(--surface); }
+  .btn-solid{ background:var(--ink); color:var(--on-dark); }
+  .btn-solid:hover{ box-shadow:0 10px 26px -10px rgba(0,0,0,.55); }
+
+  /* ---------- HERO ---------- */
+  .hero{ position:relative; background:var(--dark); color:var(--on-dark); overflow:hidden; padding:132px 0 0; }
+  #ripple{ position:absolute; inset:0; width:100%; height:100%; display:block; z-index:0; opacity:.9; }
+  .spotlight,.spotlight{ position:absolute; inset:0; z-index:1; pointer-events:none; opacity:0; transition:opacity .4s;
+    background:radial-gradient(340px circle at var(--mx,50%) var(--my,40%), rgba(255,255,255,.10), transparent 70%); }
+  .hero:hover .spotlight{ opacity:1; }
+  .hero-fade{ position:absolute; left:0; right:0; bottom:0; height:200px; z-index:2;
+    background:linear-gradient(to bottom, transparent, var(--ground)); pointer-events:none; }
+  .hero-inner{ position:relative; z-index:4; text-align:center; }
+  .hero .eyebrow{ background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.16); color:var(--on-dark-sub);
+    opacity:0; transform:translateY(10px); }
+  body.ready .hero .eyebrow{ opacity:1; transform:none; transition:opacity .6s ease .1s, transform .6s ease .1s; }
+  .hero h1{ font-size:clamp(40px,7vw,82px); line-height:1.02; color:var(--on-dark); margin:22px auto 0; max-width:14ch; }
+  .hero h1 > span{ display:inline-block; opacity:0; transform:translateY(22px); filter:blur(6px); }
+  body.ready .hero h1 > span{ opacity:1; transform:none; filter:none; transition:opacity .7s ease, transform .7s cubic-bezier(.2,.7,.3,1), filter .7s ease; }
+  body.ready .hero h1 > span:nth-child(1){ transition-delay:.20s; }
+  body.ready .hero h1 > span:nth-child(2){ transition-delay:.32s; }
+  body.ready .hero h1 > span:nth-child(3){ transition-delay:.44s; }
+  .hero h1 .mark{ position:relative; white-space:nowrap; font-style:italic; }
+  .hero h1 .mark svg{ position:absolute; left:-8%; top:-14%; width:116%; height:128%; overflow:visible; pointer-events:none; }
+  .hero h1 .mark svg path{ fill:none; stroke:var(--on-dark); stroke-width:2.2; stroke-linecap:round; opacity:.85; }
+  .hero-sub{ font-size:clamp(15px,1.7vw,18px); color:var(--on-dark-sub); max-width:52ch; margin:22px auto 0; line-height:1.6;
+    opacity:0; transform:translateY(12px); }
+  body.ready .hero-sub{ opacity:1; transform:none; transition:opacity .7s ease .6s, transform .7s ease .6s; }
+  .hero-cta{ display:flex; gap:12px; justify-content:center; margin-top:30px; flex-wrap:wrap; opacity:0; }
+  body.ready .hero-cta{ opacity:1; transition:opacity .6s ease .8s; }
+  .hero .btn-ghost{ color:var(--on-dark); border-color:rgba(255,255,255,.22); }
+  .hero .btn-ghost:hover{ background:rgba(255,255,255,.07); }
+  .hero .btn-solid{ background:var(--on-dark); color:var(--dark); }
+
+  .stage{ position:relative; z-index:4; perspective:1600px; margin:56px auto -70px; max-width:960px; padding:0 24px;
+    opacity:0; }
+  body.ready .stage{ opacity:1; transition:opacity 1s ease .5s; }
+  .device{ transform-style:preserve-3d; will-change:transform; }
+  .device-float{ animation:float 7s ease-in-out infinite; }
+  @keyframes float{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-12px); } }
+  .screen{ background:var(--surface); color:var(--ink); border-radius:18px;
+    box-shadow:0 60px 120px -40px rgba(0,0,0,.75), 0 0 0 1px rgba(0,0,0,.05); overflow:hidden; text-align:left; }
+  .screen-bar{ display:flex; align-items:center; gap:9px; padding:13px 16px; border-bottom:1px solid var(--hairline); }
+  .screen-bar .b{ font-family:var(--serif); font-size:15px; letter-spacing:1px; }
+  .live{ margin-left:8px; display:inline-flex; align-items:center; gap:5px; font-size:10px; color:var(--ink-faint); }
+  .live i{ width:6px; height:6px; border-radius:50%; background:#3a3a38; display:block; animation:blink 2s ease-in-out infinite; }
+  @keyframes blink{ 0%,100%{ opacity:.3; } 50%{ opacity:1; } }
+  .screen-bar .dots{ margin-left:auto; display:flex; gap:6px; }
+  .screen-bar .dots i{ width:8px; height:8px; border-radius:50%; background:var(--hairline-strong); display:block; }
+  .screen-body{ padding:18px; }
+  .screen-title{ font-family:var(--serif); font-size:24px; margin-bottom:14px; }
+  .stat-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
+  .stat{ border:1px solid var(--hairline); border-radius:13px; padding:12px;
+    background:linear-gradient(150% 100% at 100% 0%, rgba(43,43,43,.04), transparent 60%), var(--surface); }
+  .stat .k{ font-size:9.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); }
+  .stat .v{ font-family:var(--serif); font-size:30px; line-height:1; margin-top:8px; font-variant-numeric:tabular-nums; }
+  .stat .f{ font-size:10px; color:var(--ink-faint); margin-top:5px; }
+  .rows{ border:1px solid var(--hairline); border-radius:13px; overflow:hidden; }
+  .row{ display:flex; align-items:center; gap:11px; padding:11px 14px; border-top:1px solid var(--hairline); transition:background .4s; }
+  .row:first-child{ border-top:0; }
+  .row.flash{ background:var(--surface-alt); }
+  .row .av{ width:30px; height:30px; border-radius:50%; background:var(--surface-alt); border:1px solid var(--hairline); display:grid; place-items:center; font-family:var(--serif); font-size:13px; color:var(--ink-sub); }
+  .row .nm{ font-size:13px; font-weight:600; } .row .mt{ font-size:11px; color:var(--ink-faint); }
+  .row .pill{ margin-left:auto; font-size:10.5px; font-weight:600; color:var(--ink-sub); border:1px solid var(--hairline-strong); border-radius:999px; padding:3px 9px; }
+  @keyframes rowIn{ from{ opacity:0; transform:translateY(-8px); max-height:0; } to{ opacity:1; transform:none; max-height:70px; } }
+  .row.new{ animation:rowIn .5s ease; }
+
+  /* ---------- SECTIONS ---------- */
+  section{ position:relative; }
+  .band{ padding:104px 0; }
+  .band-head{ max-width:640px; margin-bottom:44px; }
+  .band-head h2{ font-size:clamp(30px,4.4vw,50px); line-height:1.05; margin-top:16px; }
+  .band-head p{ color:var(--ink-sub); font-size:16px; line-height:1.6; margin-top:16px; max-width:52ch; }
+
+  /* word stagger */
+  .words .w{ display:inline-block; opacity:0; transform:translateY(26px); filter:blur(5px);
+    transition:opacity .6s ease, transform .6s cubic-bezier(.2,.7,.3,1), filter .6s ease; }
+  .words.in .w{ opacity:1; transform:none; filter:none; }
+
+  .bento{ display:grid; grid-template-columns:repeat(6,1fr); gap:16px; }
+  .card{ background:var(--surface); border:1px solid var(--hairline); border-radius:20px; padding:24px;
+    display:flex; flex-direction:column; gap:12px; position:relative; overflow:hidden;
+    transition:transform .18s ease, box-shadow .25s, border-color .25s; transform-style:preserve-3d; }
+  .card .glow{ position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .3s;
+    background:radial-gradient(300px circle at var(--gx,50%) var(--gy,0%), rgba(43,43,43,.06), transparent 65%); }
+  .card:hover{ box-shadow:0 30px 60px -34px rgba(0,0,0,.42); border-color:var(--hairline-strong); }
+  .card:hover .glow{ opacity:1; }
+  .card.sp3{ grid-column:span 3; } .card.sp2{ grid-column:span 2; }
+  .card .ic{ width:38px; height:38px; border-radius:11px; background:var(--surface-alt); border:1px solid var(--hairline); display:grid; place-items:center; }
+  .card h3{ font-size:23px; } .card p{ color:var(--ink-sub); font-size:14px; line-height:1.55; }
+  .mini{ margin-top:auto; padding-top:8px; }
+  .mini .bar{ height:8px; border-radius:4px; background:var(--surface-alt); margin-bottom:7px; }
+  .chip{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--ink-sub); border:1px solid var(--hairline); border-radius:8px; padding:5px 9px; background:var(--surface-alt); margin:0 6px 6px 0; }
+
+  .stats-band{ background:var(--surface); border-top:1px solid var(--hairline); border-bottom:1px solid var(--hairline); }
+  .stats-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+  .bstat .v{ font-family:var(--serif); font-size:clamp(38px,5vw,58px); line-height:1; font-variant-numeric:tabular-nums; }
+  .bstat .l{ color:var(--ink-sub); font-size:14px; margin-top:10px; max-width:24ch; }
+
+  /* ---------- PINNED SHOWCASE (dark) ---------- */
+  /* The section is tall (380vh) so its sticky child stays pinned while ~280vh
+     of scroll drives the step/rotation progress. */
+  .showcase{ position:relative; background:var(--dark); color:var(--on-dark); min-height:380vh; }
+  .showcase .spotlight{ z-index:1; } .showcase:hover .spotlight{ opacity:1; }
+  .sc-sticky{ position:sticky; top:0; height:100vh; display:flex; align-items:center; overflow:hidden; }
+  .sc-inner{ position:relative; z-index:2; width:100%; max-width:var(--maxw); margin:0 auto; padding:0 24px;
+    display:grid; grid-template-columns:1fr 360px; gap:40px; align-items:center; }
+  .sc-copy .eyebrow{ background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.16); color:var(--on-dark-sub); }
+  .sc-copy h2{ color:var(--on-dark); font-size:clamp(30px,4.4vw,50px); line-height:1.05; margin:16px 0 0; }
+  .sc-steps{ margin-top:26px; display:flex; flex-direction:column; gap:6px; }
+  .sc-step{ padding:14px 16px; border-radius:14px; border:1px solid transparent; transition:all .35s; opacity:.4; }
+  .sc-step.on{ opacity:1; background:rgba(255,255,255,.05); border-color:rgba(255,255,255,.12); }
+  .sc-step h3{ color:var(--on-dark); font-size:19px; } .sc-step p{ color:var(--on-dark-sub); font-size:13px; margin-top:4px; line-height:1.5; }
+  .phone-wrap{ perspective:1400px; display:flex; justify-content:center; }
+  .phone{ width:300px; height:600px; border-radius:40px; background:#000; padding:11px;
+    box-shadow:0 50px 100px -30px rgba(0,0,0,.8), 0 0 0 2px rgba(255,255,255,.06); will-change:transform; }
+  .phone-screen{ position:relative; width:100%; height:100%; border-radius:30px; overflow:hidden; background:var(--ground); }
+  .sc-view{ position:absolute; inset:0; padding:20px 16px; opacity:0; transform:translateY(16px) scale(.98); transition:opacity .5s, transform .5s; overflow:hidden; }
+  .sc-view.on{ opacity:1; transform:none; }
+  .sc-view .st{ font-family:var(--serif); font-size:21px; color:var(--ink); margin:6px 0 14px; }
+  .mini-stat{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .mini-stat .b{ border:1px solid var(--hairline); border-radius:12px; padding:11px; background:var(--surface); }
+  .mini-stat .b .k{ font-size:8.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); }
+  .mini-stat .b .v{ font-family:var(--serif); font-size:24px; margin-top:5px; }
+  .vchart{ display:flex; align-items:flex-end; gap:7px; height:96px; margin-top:14px; }
+  .vchart .c{ flex:1; background:var(--surface-alt); border-radius:5px 5px 2px 2px; } .vchart .c.hot{ background:var(--ink); }
+  .vrow{ display:flex; align-items:center; gap:9px; padding:9px 0; border-top:1px solid var(--hairline); }
+  .vrow:first-of-type{ border-top:0; } .vrow .av{ width:26px; height:26px; border-radius:50%; background:var(--surface-alt); border:1px solid var(--hairline); display:grid; place-items:center; font-family:var(--serif); font-size:11px; color:var(--ink-sub); }
+  .vrow .nm{ font-size:12px; font-weight:600; color:var(--ink); } .vrow .mt{ font-size:10px; color:var(--ink-faint); }
+  .vrow .pill{ margin-left:auto; font-size:9.5px; font-weight:600; color:var(--ink-sub); border:1px solid var(--hairline-strong); border-radius:999px; padding:2px 8px; }
+  .vbubble{ max-width:78%; padding:9px 12px; border-radius:14px; font-size:12px; margin-bottom:8px; line-height:1.4; }
+  .vbubble.them{ background:var(--surface); border:1px solid var(--hairline); color:var(--ink); border-bottom-left-radius:4px; }
+  .vbubble.me{ background:var(--ink); color:var(--on-dark); margin-left:auto; border-bottom-right-radius:4px; }
+  .vname{ font-size:10.5px; font-weight:600; color:var(--ink-sub); margin:6px 0 3px; }
+  /* reservation-list mock (matches the app screen) */
+  .vchips{ display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
+  .vchip{ font-size:10.5px; font-weight:600; color:var(--ink-sub); border:1px solid var(--hairline-strong); border-radius:999px; padding:4px 10px; background:var(--surface); }
+  .vchip.on{ background:var(--ink); color:var(--on-dark); border-color:var(--ink); }
+  .vdate{ display:flex; justify-content:space-between; font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:9px; }
+  .vcard{ display:flex; align-items:center; gap:12px; border:1px solid var(--hairline); border-radius:14px; padding:11px 13px; margin-bottom:8px; background:var(--surface); }
+  .vtime{ font-family:var(--serif); font-size:22px; line-height:1; color:var(--ink); font-variant-numeric:tabular-nums; text-align:center; }
+  .vtime span{ display:block; font-size:11px; color:var(--ink-faint); }
+  .vmeta{ flex:1; min-width:0; }
+  .vmeta .nm{ font-size:12.5px; font-weight:600; color:var(--ink); display:flex; align-items:center; gap:6px; }
+  .vmeta .nm .pill{ font-size:8.5px; padding:2px 7px; }
+  .vmeta .mt{ font-size:10.5px; color:var(--ink-faint); margin-top:3px; }
+  .vstatus{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
+  .vstatus .s{ border:1px solid var(--hairline); border-radius:11px; padding:9px 11px; background:var(--surface); }
+  .vstatus .s .t{ display:flex; align-items:center; gap:6px; font-size:10px; color:var(--ink-sub); }
+  .vstatus .s .t i{ width:6px; height:6px; border-radius:50%; background:var(--ink); display:block; }
+  .vstatus .s .n{ font-family:var(--serif); font-size:20px; color:var(--ink); margin-top:3px; }
+  .vstatus .s .n small{ font-size:10px; color:var(--ink-faint); font-family:var(--sans); margin-left:4px; }
+  .sc-progress{ position:absolute; left:24px; right:24px; bottom:26px; height:2px; background:rgba(255,255,255,.12); z-index:3; border-radius:2px; }
+  .sc-progress i{ display:block; height:100%; width:0; background:var(--on-dark); border-radius:2px; }
+
+  /* ---------- FEATURE DETAIL ---------- */
+  .tabs{ display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
+  .tab{ font:inherit; font-size:13px; font-weight:600; border:1px solid var(--hairline-strong); background:var(--surface); color:var(--ink-sub); border-radius:999px; padding:8px 15px; cursor:pointer; transition:all .2s; }
+  .tab.on{ background:var(--ink); color:var(--on-dark); border-color:var(--ink); }
+  .panel{ display:none; } .panel.on{ display:block; animation:fadeIn .4s ease; }
+  @keyframes fadeIn{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:none; } }
+  .feat{ display:grid; grid-template-columns:1.05fr .95fr; gap:40px; align-items:center; }
+  .feat-card{ background:var(--surface); border:1px solid var(--hairline); border-radius:20px; padding:22px; box-shadow:0 30px 60px -46px rgba(0,0,0,.45); }
+  .feat h3{ font-size:30px; margin-bottom:12px; } .feat .lead{ color:var(--ink-sub); font-size:15px; line-height:1.6; }
+  .checks{ list-style:none; padding:0; margin:18px 0 0; display:flex; flex-direction:column; gap:12px; }
+  .checks li{ display:flex; gap:11px; align-items:flex-start; font-size:14.5px; } .checks svg{ flex:none; margin-top:2px; }
+  .chart{ display:flex; align-items:flex-end; gap:9px; height:120px; padding:6px 0 0; }
+  .chart .col{ flex:1; background:var(--surface-alt); border-radius:6px 6px 3px 3px; } .chart .col.hot{ background:var(--ink); }
+
+  .why{ display:grid; grid-template-columns:repeat(2,1fr); gap:14px 40px; }
+  .why-item{ display:flex; gap:14px; padding:20px 0; border-top:1px solid var(--hairline); align-items:flex-start; }
+  .why-item .n{ font-family:var(--serif); font-size:15px; color:var(--ink-faint); font-variant-numeric:tabular-nums; padding-top:2px; }
+  .why-item h3{ font-size:19px; margin-bottom:5px; } .why-item p{ color:var(--ink-sub); font-size:13.5px; line-height:1.55; }
+
+  .cta-band{ background:var(--dark); color:var(--on-dark); text-align:center; overflow:hidden; position:relative; }
+  .cta-band .spotlight{ z-index:1; } .cta-band:hover .spotlight{ opacity:1; }
+  .cta-band .wrap{ position:relative; z-index:2; }
+  .cta-band .eyebrow{ background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.16); color:var(--on-dark-sub); }
+  .cta-band h2{ color:var(--on-dark); font-size:clamp(32px,5vw,58px); line-height:1.05; margin:18px auto 0; max-width:16ch; }
+  .cta-band p{ color:var(--on-dark-sub); margin:18px auto 0; max-width:44ch; font-size:16px; line-height:1.6; }
+  .cta-band .hero-cta{ margin-top:30px; opacity:1; }
+  .cta-band .btn-solid{ background:var(--on-dark); color:var(--dark); }
+  .cta-band .btn-ghost{ color:var(--on-dark); border-color:rgba(255,255,255,.22); }
+  .cta-band .stamp{ position:absolute; right:6%; top:50%; transform:translateY(-50%) rotate(-12deg); width:150px; height:150px; opacity:.5; z-index:2; }
+
+  footer{ background:var(--ground); padding:56px 0 40px; border-top:1px solid var(--hairline); }
+  .foot{ display:flex; flex-wrap:wrap; gap:30px 60px; align-items:flex-start; justify-content:space-between; }
+  .foot .brand{ margin-bottom:12px; }
+  .foot-col h4{ font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); margin:0 0 12px; font-weight:700; font-family:var(--sans); }
+  .foot-col a, .foot-col p{ display:block; font-size:13.5px; color:var(--ink-sub); margin-bottom:8px; }
+  .foot-col a:hover{ color:var(--ink); }
+  .foot-bottom{ margin-top:40px; padding-top:20px; border-top:1px solid var(--hairline); display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--ink-faint); }
+
+  /* back to top */
+  #toTop{ position:fixed; right:22px; bottom:22px; z-index:60; width:46px; height:46px; border-radius:50%;
+    border:1px solid var(--hairline-strong); background:var(--surface); color:var(--ink); cursor:pointer;
+    display:grid; place-items:center; opacity:0; transform:translateY(12px); pointer-events:none;
+    transition:opacity .3s, transform .3s, box-shadow .2s; box-shadow:0 8px 24px -12px rgba(0,0,0,.4); }
+  #toTop.show{ opacity:1; transform:none; pointer-events:auto; }
+  #toTop:hover{ box-shadow:0 12px 30px -12px rgba(0,0,0,.5); }
+
+  .reveal{ opacity:0; transform:translateY(26px); transition:opacity .7s cubic-bezier(.2,.7,.3,1), transform .7s cubic-bezier(.2,.7,.3,1); }
+  .reveal.in{ opacity:1; transform:none; }
+  .reveal[data-d="1"]{ transition-delay:.07s; } .reveal[data-d="2"]{ transition-delay:.14s; }
+  .reveal[data-d="3"]{ transition-delay:.21s; } .reveal[data-d="4"]{ transition-delay:.28s; }
+  .draw{ stroke-dasharray:var(--len,300); stroke-dashoffset:var(--len,300); transition:stroke-dashoffset 1s ease .2s; }
+  .in .draw, .drawn .draw{ stroke-dashoffset:0; }
+
+  @media (max-width:900px){
+    .bento{ grid-template-columns:repeat(2,1fr); } .card.sp3,.card.sp2{ grid-column:span 2; }
+    .feat{ grid-template-columns:1fr; gap:26px; } .stat-row{ grid-template-columns:repeat(2,1fr); }
+    .why{ grid-template-columns:1fr; } .stats-grid{ grid-template-columns:1fr; gap:14px; }
+    .nav-links{ display:none; }
+    .sc-inner{ grid-template-columns:1fr; gap:18px; justify-items:center; text-align:center; }
+    .sc-copy{ order:2; } .phone-wrap{ order:1; }
+    .showcase{ min-height:320vh; }
+    .sc-steps{ flex-direction:row; gap:6px; flex-wrap:wrap; justify-content:center; }
+    .sc-step{ padding:8px 12px; } .sc-step p{ display:none; }
+    .phone{ width:250px; height:470px; }
+  }
+  @media (max-width:560px){
+    .band{ padding:74px 0; } .hide-sm{ display:none !important; }
+    .bento{ grid-template-columns:1fr; } .card.sp3,.card.sp2{ grid-column:span 1; }
+    .stage{ margin-bottom:-40px; } .phone{ width:230px; height:440px; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    html{ scroll-behavior:auto; }
+    .reveal,.words .w,.hero h1 > span,.hero-sub,.hero-cta,.hero .eyebrow,.stage{ opacity:1 !important; transform:none !important; filter:none !important; }
+    .device-float{ animation:none; } .draw{ stroke-dashoffset:0 !important; }
+    #preloader{ display:none; } .live i{ animation:none; }
+  }
+</style>
+
+<!-- PRELOADER -->
+<div id="preloader" aria-hidden="true">
+  <div class="pl-mark">
+    <svg width="72" height="72" viewBox="0 0 200 200" fill="none">
+      <circle class="pl-ring" cx="100" cy="100" r="83" stroke-dasharray="486 35" stroke-dashoffset="-70" transform="rotate(90 100 100)"/>
+      <circle class="pl-dot" cx="100" cy="147" r="4.6"/>
+    </svg>
+    <span class="pl-word">ORDIORA</span>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav class="nav" id="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top" aria-label="ORDIORA">
+      <svg width="30" height="30" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+        <circle cx="20" cy="20" r="16.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="97 7" stroke-dashoffset="-14" transform="rotate(90 20 20)"/>
+        <circle cx="20" cy="29" r="1.5" fill="currentColor"/>
+      </svg><span>ORDIORA</span>
+    </a>
+    <div class="nav-links">
+      <a href="#features" data-hr="Značajke" data-en="Features">Značajke</a>
+      <a href="#showcase" data-hr="Pregled" data-en="Tour">Pregled</a>
+      <a href="#how" data-hr="Kako radi" data-en="How it works">Kako radi</a>
+      <a href="#contact" data-hr="Kontakt" data-en="Contact">Kontakt</a>
+    </div>
+    <div class="nav-right">
+      <div class="lang" role="group" aria-label="Language">
+        <button data-lang="hr" class="on">HR</button><button data-lang="en">EN</button>
+      </div>
+      <a class="btn btn-ghost magnetic hide-sm" href="https://orirora-wb4s.vercel.app" target="_blank" rel="noopener" data-hr="Prijava" data-en="Log in">Prijava</a>
+      <a class="btn btn-solid magnetic" href="https://orirora-wb4s.vercel.app" target="_blank" rel="noopener" data-hr="Isprobaj" data-en="Try it">Isprobaj</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero" id="top">
+  <canvas id="ripple" aria-hidden="true"></canvas>
+  <div class="spotlight"></div>
+  <div class="hero-inner wrap">
+    <span class="eyebrow" data-hr="Sustav za upravljanje restoranom" data-en="Restaurant management system">Sustav za upravljanje restoranom</span>
+    <h1>
+      <span data-hr="Vodite restoran" data-en="Run your restaurant"></span>
+      <span data-hr="s" data-en="with"></span>
+      <span class="mark" id="heroMark"><span data-hr="mirom" data-en="ease"></span><svg viewBox="0 0 240 90" aria-hidden="true"><path class="draw" style="--len:560" d="M118 12 C60 8 18 24 14 46 C10 70 74 82 128 80 C196 78 232 60 226 40 C221 22 168 10 96 16"/></svg></span>
+    </h1>
+    <p class="hero-sub" data-hr="Rezervacije, stolovi, smjene, tim i analitika — sve na jednom mjestu, na mobitelu i računalu." data-en="Reservations, tables, shifts, team and analytics — all in one place, on phone and desktop.">Rezervacije, stolovi, smjene, tim i analitika — sve na jednom mjestu, na mobitelu i računalu.</p>
+    <div class="hero-cta">
+      <a class="btn btn-solid magnetic" href="https://orirora-wb4s.vercel.app" target="_blank" rel="noopener" data-hr="Isprobaj besplatno" data-en="Try it free">Isprobaj besplatno</a>
+      <a class="btn btn-ghost magnetic" href="#features" data-hr="Pogledaj značajke" data-en="See features">Pogledaj značajke</a>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="device" id="device">
+      <div class="device-float">
+        <div class="screen">
+          <div class="screen-bar">
+            <svg width="22" height="22" viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="16.5" fill="none" stroke="#2B2B2B" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="97 7" stroke-dashoffset="-14" transform="rotate(90 20 20)"/><circle cx="20" cy="29" r="1.5" fill="#2B2B2B"/></svg>
+            <span class="b">ORDIORA</span>
+            <span class="live"><i></i><span data-hr="uživo" data-en="live">uživo</span></span>
+            <span class="dots"><i></i><i></i><i></i></span>
+          </div>
+          <div class="screen-body">
+            <div class="screen-title" data-hr="Nadzorna ploča" data-en="Dashboard">Nadzorna ploča</div>
+            <div class="stat-row">
+              <div class="stat"><div class="k" data-hr="Rezervacije" data-en="Bookings">Rezervacije</div><div class="v count" data-to="24">0</div><div class="f" data-hr="danas" data-en="today">danas</div></div>
+              <div class="stat"><div class="k" data-hr="Gosti" data-en="Guests">Gosti</div><div class="v count" data-to="68" id="guestsNum">0</div><div class="f" data-hr="očekivano" data-en="expected">očekivano</div></div>
+              <div class="stat"><div class="k" data-hr="Smjene" data-en="Shifts">Smjene</div><div class="v count" data-to="5">0</div><div class="f" data-hr="na poslu" data-en="on duty">na poslu</div></div>
+              <div class="stat"><div class="k" data-hr="Na čekanju" data-en="Pending">Na čekanju</div><div class="v count" data-to="3" id="pendingNum">0</div><div class="f" data-hr="za potvrdu" data-en="to confirm">za potvrdu</div></div>
+            </div>
+            <div class="rows" id="liveRows">
+              <div class="row"><span class="av">AH</span><div><div class="nm">Ana Horvat</div><div class="mt">19:00 · 4 · Stol 2</div></div><span class="pill" data-hr="Potvrđeno" data-en="Confirmed">Potvrđeno</span></div>
+              <div class="row"><span class="av">LN</span><div><div class="nm">Luka Novak</div><div class="mt">20:30 · 2 · Stol 7</div></div><span class="pill" data-hr="Na čekanju" data-en="Pending">Na čekanju</span></div>
+              <div class="row"><span class="av">PJ</span><div><div class="nm">Petra Jurić</div><div class="mt">21:00 · 6 · Terasa</div></div><span class="pill" data-hr="Sjede" data-en="Seated">Sjede</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="hero-fade"></div>
+</header>
+
+<!-- FEATURES -->
+<section class="band" id="features">
+  <div class="wrap">
+    <div class="band-head reveal">
+      <span class="eyebrow" data-hr="Značajke" data-en="Features">Značajke</span>
+      <h2 class="words" data-hr="Sve što restoran treba — na jednom mjestu." data-en="Everything a restaurant needs — in one place.">Sve što restoran treba — na jednom mjestu.</h2>
+      <p data-hr="Od rezervacija do rasporeda smjena i komunikacije tima. Bez papira, bez zbrke, bez skakanja između aplikacija." data-en="From reservations to shift schedules and team chat. No paper, no chaos, no jumping between apps.">Od rezervacija do rasporeda smjena i komunikacije tima. Bez papira, bez zbrke, bez skakanja između aplikacija.</p>
+    </div>
+    <div class="bento">
+      <div class="card tilt sp3 reveal" data-d="1"><span class="glow"></span>
+        <div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B2B2B" stroke-width="1.7"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg></div>
+        <h3 data-hr="Rezervacije" data-en="Reservations">Rezervacije</h3>
+        <p data-hr="Zabilježite gosta u par sekundi. Aplikacija sama provjerava zauzeće stola i sprječava dvostruke rezervacije." data-en="Book a guest in seconds. The app checks table availability and prevents double-bookings automatically.">Zabilježite gosta u par sekundi. Aplikacija sama provjerava zauzeće stola i sprječava dvostruke rezervacije.</p>
+        <div class="mini"><div class="bar" style="width:88%"></div><div class="bar" style="width:64%"></div><div class="bar" style="width:76%"></div></div>
+      </div>
+      <div class="card tilt sp3 reveal" data-d="2"><span class="glow"></span>
+        <div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B2B2B" stroke-width="1.7"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="16" r="3"/><path d="M4.5 20c0-2.5 1.8-4 4-4M12 8h4.5"/></svg></div>
+        <h3 data-hr="Stolovi i sale" data-en="Tables & zones">Stolovi i sale</h3>
+        <p data-hr="Organizirajte stolove po sekcijama — sala, terasa, kat — i pratite kapacitet svakog dijela restorana." data-en="Organize tables by section — floor, patio, upstairs — and track the capacity of every part of the restaurant.">Organizirajte stolove po sekcijama — sala, terasa, kat — i pratite kapacitet svakog dijela restorana.</p>
+        <div class="mini"><span class="chip">Sala · 8</span><span class="chip">Terasa · 6</span><span class="chip">Kat · 4</span></div>
+      </div>
+      <div class="card tilt sp2 reveal" data-d="1"><span class="glow"></span>
+        <div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B2B2B" stroke-width="1.7"><path d="M4 5h16v11H9l-4 3v-3H4z"/></svg></div>
+        <h3 data-hr="Tim chat" data-en="Team chat">Tim chat</h3>
+        <p data-hr="Kanali Općenito, Sala i Kuhinja — poruke stižu točno onima kojima trebaju." data-en="General, Floor and Kitchen channels — messages reach exactly the right people.">Kanali Općenito, Sala i Kuhinja — poruke stižu točno onima kojima trebaju.</p>
+      </div>
+      <div class="card tilt sp2 reveal" data-d="2"><span class="glow"></span>
+        <div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B2B2B" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></svg></div>
+        <h3 data-hr="Smjene" data-en="Shifts">Smjene</h3>
+        <p data-hr="Tjedni raspored, radne smjene i slobodni dani — pregledno za cijeli tim." data-en="Weekly schedule, work shifts and days off — clear for the whole team.">Tjedni raspored, radne smjene i slobodni dani — pregledno za cijeli tim.</p>
+      </div>
+      <div class="card tilt sp2 reveal" data-d="3"><span class="glow"></span>
+        <div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B2B2B" stroke-width="1.7"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+        <h3 data-hr="Analitika" data-en="Analytics">Analitika</h3>
+        <p data-hr="Gosti, zauzeće, špice i učinak osoblja — brojke koje pomažu u odluci." data-en="Guests, occupancy, peak hours and staff performance — numbers that guide decisions.">Gosti, zauzeće, špice i učinak osoblja — brojke koje pomažu u odluci.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BENEFITS -->
+<section class="band stats-band" id="benefits">
+  <div class="wrap">
+    <div class="band-head reveal" style="margin-bottom:38px">
+      <span class="eyebrow" data-hr="Prednosti" data-en="Benefits">Prednosti</span>
+      <h2 class="words" data-hr="Jedna aplikacija umjesto pet." data-en="One app instead of five.">Jedna aplikacija umjesto pet.</h2>
+    </div>
+    <div class="stats-grid">
+      <div class="bstat reveal" data-d="1"><div class="v"><span class="count" data-to="6">0</span> <span data-hr="modula" data-en="tools">modula</span></div><div class="l" data-hr="rezervacije, stolovi, smjene, tim, analitika i zamolbe — u jednoj aplikaciji." data-en="reservations, tables, shifts, team, analytics and follow-ups — in a single app.">rezervacije, stolovi, smjene, tim, analitika i zamolbe — u jednoj aplikaciji.</div></div>
+      <div class="bstat reveal" data-d="2"><div class="v" data-hr="Mobitel + web" data-en="Phone + web">Mobitel + web</div><div class="l" data-hr="radi jednako dobro na telefonu, tabletu i računalu. Bez instalacije." data-en="works equally well on phone, tablet and desktop. No install required.">radi jednako dobro na telefonu, tabletu i računalu. Bez instalacije.</div></div>
+      <div class="bstat reveal" data-d="3"><div class="v" data-hr="HR &amp; EN" data-en="HR &amp; EN">HR &amp; EN</div><div class="l" data-hr="dvojezično sučelje i sigurno spremljene, enkriptirane lozinke." data-en="a bilingual interface and securely hashed passwords.">dvojezično sučelje i sigurno spremljene, enkriptirane lozinke.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- PINNED SHOWCASE -->
+<section class="showcase" id="showcase">
+  <div class="sc-sticky">
+    <div class="spotlight"></div>
+    <div class="sc-inner">
+      <div class="sc-copy">
+        <span class="eyebrow" data-hr="Pregled" data-en="Tour">Pregled</span>
+        <h2 data-hr="Pogledajte iznutra." data-en="Take a look inside.">Pogledajte iznutra.</h2>
+        <div class="sc-steps">
+          <div class="sc-step on" data-step="0"><h3 data-hr="Nadzorna ploča" data-en="Dashboard">Nadzorna ploča</h3><p data-hr="Dan na jednom ekranu — rezervacije, gosti, smjene." data-en="Your day on one screen — bookings, guests, shifts.">Dan na jednom ekranu — rezervacije, gosti, smjene.</p></div>
+          <div class="sc-step" data-step="1"><h3 data-hr="Rezervacije" data-en="Reservations">Rezervacije</h3><p data-hr="Dodajte i pratite goste, uz provjeru zauzeća stola." data-en="Add and track guests, with table-conflict checks.">Dodajte i pratite goste, uz provjeru zauzeća stola.</p></div>
+          <div class="sc-step" data-step="2"><h3 data-hr="Tim chat" data-en="Team chat">Tim chat</h3><p data-hr="Sala i Kuhinja komuniciraju u stvarnom vremenu." data-en="Floor and kitchen talk in real time.">Sala i Kuhinja komuniciraju u stvarnom vremenu.</p></div>
+          <div class="sc-step" data-step="3"><h3 data-hr="Analitika" data-en="Analytics">Analitika</h3><p data-hr="Špice, zauzeće i trendovi — jasno prikazani." data-en="Peaks, occupancy and trends — clearly shown.">Špice, zauzeće i trendovi — jasno prikazani.</p></div>
+        </div>
+      </div>
+      <div class="phone-wrap">
+        <div class="phone" id="phone">
+          <div class="phone-screen">
+            <!-- view 0 · Nadzorna ploča -->
+            <div class="sc-view on" data-view="0">
+              <div class="st" data-hr="Nadzorna ploča" data-en="Dashboard">Nadzorna ploča</div>
+              <div class="mini-stat">
+                <div class="b"><div class="k" data-hr="Rezervacije" data-en="Bookings">Rezervacije</div><div class="v">18</div></div>
+                <div class="b"><div class="k" data-hr="Gosti" data-en="Guests">Gosti</div><div class="v">52</div></div>
+                <div class="b"><div class="k" data-hr="Smjene" data-en="Shifts">Smjene</div><div class="v">4</div></div>
+                <div class="b"><div class="k" data-hr="Na čekanju" data-en="Pending">Na čekanju</div><div class="v">2</div></div>
+              </div>
+              <div style="margin-top:14px" class="vrow"><span class="av">AH</span><div><div class="nm">Ana Horvat</div><div class="mt">19:00 · Stol 2</div></div><span class="pill" data-hr="Potvrđeno" data-en="Confirmed">Potvrđeno</span></div>
+              <div class="vrow"><span class="av">PJ</span><div><div class="nm">Petra Jurić</div><div class="mt">21:00 · Terasa</div></div><span class="pill" data-hr="Sjede" data-en="Seated">Sjede</span></div>
+            </div>
+            <!-- view 1 · Rezervacije -->
+            <div class="sc-view" data-view="1">
+              <div class="st" data-hr="Rezervacije" data-en="Reservations">Rezervacije</div>
+              <div class="vchips"><span class="vchip on" data-hr="Sve" data-en="All">Sve</span><span class="vchip" data-hr="Na čekanju" data-en="Pending">Na čekanju</span><span class="vchip" data-hr="Potvrđeno" data-en="Confirmed">Potvrđeno</span></div>
+              <div class="vdate"><span data-hr="Subota, 26. srp" data-en="Saturday, Jul 26">Subota, 26. srp</span><span data-hr="3 rezervacije" data-en="3 bookings">3 rezervacije</span></div>
+              <div class="vcard"><div class="vtime">19<span>:00</span></div><div class="vmeta"><div class="nm">Ana Horvat <b class="pill" data-hr="Potvrđeno" data-en="Confirmed">Potvrđeno</b></div><div class="mt">4 <span data-hr="gosta" data-en="guests">gosta</span> · Stol 2 · 120 min</div></div></div>
+              <div class="vcard"><div class="vtime">20<span>:30</span></div><div class="vmeta"><div class="nm">Luka Novak <b class="pill" data-hr="Na čekanju" data-en="Pending">Na čekanju</b></div><div class="mt">2 <span data-hr="gosta" data-en="guests">gosta</span> · Stol 7 · 90 min</div></div></div>
+              <div class="vcard"><div class="vtime">21<span>:00</span></div><div class="vmeta"><div class="nm">Petra Jurić <b class="pill" data-hr="Sjede" data-en="Seated">Sjede</b></div><div class="mt">6 <span data-hr="gostiju" data-en="guests">gostiju</span> · Terasa · 90 min</div></div></div>
+            </div>
+            <!-- view 2 · Tim chat -->
+            <div class="sc-view" data-view="2">
+              <div class="st" data-hr="Općenito" data-en="General"># Općenito</div>
+              <div class="vbubble me" data-hr="Ekipa, večeras smo popunjeni 🙌" data-en="Team, we're fully booked tonight 🙌">Ekipa, večeras smo popunjeni 🙌</div>
+              <div class="vname">Luka · 17:09</div>
+              <div class="vbubble them" data-hr="Spremni smo!" data-en="We're ready!">Spremni smo!</div>
+              <div class="vname">Marta · 17:12</div>
+              <div class="vbubble them" data-hr="Terasa 100% 🌿" data-en="Patio 100% 🌿">Terasa 100% 🌿</div>
+            </div>
+            <!-- view 3 · Analitika -->
+            <div class="sc-view" data-view="3">
+              <div class="st" data-hr="Analitika" data-en="Analytics">Analitika</div>
+              <div class="mini-stat">
+                <div class="b"><div class="k" data-hr="Ukupno rez." data-en="Total bookings">Ukupno rez.</div><div class="v">42</div></div>
+                <div class="b"><div class="k" data-hr="Gostiju" data-en="Guests">Gostiju</div><div class="v">128</div></div>
+                <div class="b"><div class="k" data-hr="Popunjenost" data-en="Occupancy">Popunjenost</div><div class="v">71%</div></div>
+                <div class="b"><div class="k" data-hr="Nedolasci" data-en="No-shows">Nedolasci</div><div class="v">3</div></div>
+              </div>
+              <div style="font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);margin:14px 0 2px" data-hr="Najprometniji sati" data-en="Peak hours">Najprometniji sati</div>
+              <div class="vchart"><div class="c" style="height:34%"></div><div class="c" style="height:50%"></div><div class="c" style="height:44%"></div><div class="c hot" style="height:92%"></div><div class="c" style="height:70%"></div><div class="c" style="height:60%"></div></div>
+            </div>
+          </div>
+          <div class="sc-progress"><i id="scBar"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW -->
+<section class="band" id="how">
+  <div class="wrap">
+    <div class="band-head reveal">
+      <span class="eyebrow" data-hr="Kako radi" data-en="How it works">Kako radi</span>
+      <h2 class="words" data-hr="Doživite pojednostavljene operacije." data-en="Experience streamlined operations.">Doživite pojednostavljene operacije.</h2>
+    </div>
+    <div class="tabs reveal" role="tablist">
+      <button class="tab on" data-tab="dash" data-hr="Nadzorna ploča" data-en="Dashboard">Nadzorna ploča</button>
+      <button class="tab" data-tab="res" data-hr="Rezervacije" data-en="Reservations">Rezervacije</button>
+      <button class="tab" data-tab="chat" data-hr="Tim chat" data-en="Team chat">Tim chat</button>
+    </div>
+    <div class="feat reveal" data-d="1">
+      <div class="feat-card panel on" data-panel="dash">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px">
+          <div><div style="font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.08em;font-weight:700" data-hr="Rezervacije po danu" data-en="Reservations per day">Rezervacije po danu</div>
+          <div style="font-family:var(--serif);font-size:34px;line-height:1;margin-top:6px"><span class="count" data-to="128">0</span> <span style="font-size:14px;color:var(--ink-faint)">/ <span data-hr="tjedan" data-en="week">tjedan</span></span></div></div>
+        </div>
+        <div class="chart"><div class="col" style="height:52%"></div><div class="col" style="height:70%"></div><div class="col" style="height:44%"></div><div class="col hot" style="height:92%"></div><div class="col" style="height:66%"></div><div class="col" style="height:80%"></div><div class="col" style="height:58%"></div></div>
+      </div>
+      <div class="feat-card panel" data-panel="res">
+        <div class="rows">
+          <div class="row"><span class="av">AH</span><div><div class="nm">Ana Horvat</div><div class="mt">19:00 · 4 · Stol 2</div></div><span class="pill" data-hr="Potvrđeno" data-en="Confirmed">Potvrđeno</span></div>
+          <div class="row"><span class="av">LN</span><div><div class="nm">Luka Novak</div><div class="mt">20:30 · 2 · Stol 7</div></div><span class="pill" data-hr="Na čekanju" data-en="Pending">Na čekanju</span></div>
+          <div class="row"><span class="av">PJ</span><div><div class="nm">Petra Jurić</div><div class="mt">21:00 · 6 · Terasa</div></div><span class="pill" data-hr="Sjede" data-en="Seated">Sjede</span></div>
+        </div>
+      </div>
+      <div class="feat-card panel" data-panel="chat">
+        <div class="tabs" style="margin-bottom:14px"><span class="chip" style="background:var(--ink);color:var(--on-dark);border-color:var(--ink)"># <span data-hr="Sala" data-en="Floor">Sala</span></span><span class="chip"># <span data-hr="Kuhinja" data-en="Kitchen">Kuhinja</span></span><span class="chip"># <span data-hr="Općenito" data-en="General">Općenito</span></span></div>
+        <div class="rows" style="border:0">
+          <div class="row" style="border:0"><span class="av">MA</span><div><div class="nm">Marta</div><div class="mt" data-hr="Stol 5 traži račun 🙌" data-en="Table 5 wants the bill 🙌">Stol 5 traži račun 🙌</div></div></div>
+          <div class="row"><span class="av">KH</span><div><div class="nm" data-hr="Kuhinja" data-en="Kitchen">Kuhinja</div><div class="mt" data-hr="Riba za Stol 2 kreće za 3 min" data-en="Fish for table 2 up in 3 min">Riba za Stol 2 kreće za 3 min</div></div></div>
+        </div>
+      </div>
+      <div>
+        <h3 data-hr="Sve pod kontrolom, u stvarnom vremenu." data-en="Everything under control, in real time.">Sve pod kontrolom, u stvarnom vremenu.</h3>
+        <p class="lead" data-hr="Nadzorna ploča okuplja današnje rezervacije, goste, smjene i zadatke na jednom ekranu — bez traženja po bilježnicama." data-en="The dashboard brings today's reservations, guests, shifts and tasks onto one screen — no digging through notebooks.">Nadzorna ploča okuplja današnje rezervacije, goste, smjene i zadatke na jednom ekranu — bez traženja po bilježnicama.</p>
+        <ul class="checks">
+          <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B2B2B" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span data-hr="Uloge za vlasnika, konobare i kuhare" data-en="Roles for owner, waiters and chefs">Uloge za vlasnika, konobare i kuhare</span></li>
+          <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B2B2B" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span data-hr="Automatska provjera zauzeća stolova" data-en="Automatic table-conflict checks">Automatska provjera zauzeća stolova</span></li>
+          <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B2B2B" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span data-hr="Podaci sigurno spremljeni u oblaku" data-en="Data safely stored in the cloud">Podaci sigurno spremljeni u oblaku</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WHY -->
+<section class="band" style="padding-top:0">
+  <div class="wrap">
+    <div class="band-head reveal"><h2 class="words" data-hr="Zašto ORDIORA" data-en="Why ORDIORA">Zašto ORDIORA</h2></div>
+    <div class="why">
+      <div class="why-item reveal" data-d="1"><span class="n">01</span><div><h3 data-hr="Bez instalacije" data-en="No install">Bez instalacije</h3><p data-hr="Otvorite u pregledniku i dodajte na početni zaslon — radi kao aplikacija." data-en="Open in the browser and add to your home screen — it works like a native app.">Otvorite u pregledniku i dodajte na početni zaslon — radi kao aplikacija.</p></div></div>
+      <div class="why-item reveal" data-d="2"><span class="n">02</span><div><h3 data-hr="Za cijeli tim" data-en="For the whole team">Za cijeli tim</h3><p data-hr="Vlasnik postavlja restoran i dodaje osoblje; svatko vidi točno ono što treba." data-en="The owner sets up the restaurant and adds staff; everyone sees exactly what they need.">Vlasnik postavlja restoran i dodaje osoblje; svatko vidi točno ono što treba.</p></div></div>
+      <div class="why-item reveal" data-d="3"><span class="n">03</span><div><h3 data-hr="Sigurno" data-en="Secure">Sigurno</h3><p data-hr="Lozinke su enkriptirane (jednosmjerni hash), a podaci se čuvaju u oblaku." data-en="Passwords are hashed (one-way), and data is kept in the cloud.">Lozinke su enkriptirane (jednosmjerni hash), a podaci se čuvaju u oblaku.</p></div></div>
+      <div class="why-item reveal" data-d="4"><span class="n">04</span><div><h3 data-hr="Prilagodljivo" data-en="Adaptive">Prilagodljivo</h3><p data-hr="Isto sučelje, savršeno na mobitelu u sali i na računalu u uredu." data-en="The same interface, perfect on a phone on the floor and a desktop in the office.">Isto sučelje, savršeno na mobitelu u sali i na računalu u uredu.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="band cta-band" id="contact">
+  <div class="spotlight"></div>
+  <div class="stamp" aria-hidden="true">
+    <svg viewBox="0 0 140 140" fill="none"><ellipse cx="70" cy="70" rx="60" ry="42" stroke="#F1EFEA" stroke-width="2.5" transform="rotate(-8 70 70)"/><ellipse cx="70" cy="70" rx="52" ry="34" stroke="#F1EFEA" stroke-width="1" opacity=".5" transform="rotate(-8 70 70)"/><text x="70" y="66" text-anchor="middle" font-family="Georgia,serif" font-size="17" letter-spacing="1" fill="#F1EFEA">ORDIORA</text><text x="70" y="86" text-anchor="middle" font-family="Georgia,serif" font-size="9" letter-spacing="3" fill="#9C9A94">RESTORAN OS</text></svg>
+  </div>
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow" data-hr="Počnite danas" data-en="Start today">Počnite danas</span>
+      <h2 data-hr="Spremni za mirniju smjenu?" data-en="Ready for a calmer shift?">Spremni za mirniju smjenu?</h2>
+      <p data-hr="Postavite svoj restoran u nekoliko minuta. Bez kartice, bez obveza." data-en="Set up your restaurant in a few minutes. No card, no commitment.">Postavite svoj restoran u nekoliko minuta. Bez kartice, bez obveza.</p>
+      <div class="hero-cta">
+        <a class="btn btn-solid magnetic" href="https://orirora-wb4s.vercel.app" target="_blank" rel="noopener" data-hr="Otvori ORDIORA" data-en="Open ORDIORA">Otvori ORDIORA</a>
+        <a class="btn btn-ghost magnetic" href="mailto:kontakt@ordiora.app" data-hr="Kontaktiraj nas" data-en="Contact us">Kontaktiraj nas</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div style="max-width:280px">
+        <a class="brand" href="#top" aria-label="ORDIORA"><svg width="28" height="28" viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="16.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="97 7" stroke-dashoffset="-14" transform="rotate(90 20 20)"/><circle cx="20" cy="29" r="1.5" fill="currentColor"/></svg><span>ORDIORA</span></a>
+        <p style="color:var(--ink-sub);font-size:13.5px;line-height:1.6" data-hr="Sustav za upravljanje restoranom — rezervacije, tim i sve između." data-en="Restaurant management system — reservations, team and everything in between.">Sustav za upravljanje restoranom — rezervacije, tim i sve između.</p>
+      </div>
+      <div class="foot-col"><h4 data-hr="Proizvod" data-en="Product">Proizvod</h4>
+        <a href="#features" data-hr="Značajke" data-en="Features">Značajke</a>
+        <a href="#showcase" data-hr="Pregled" data-en="Tour">Pregled</a>
+        <a href="#how" data-hr="Kako radi" data-en="How it works">Kako radi</a>
+      </div>
+      <div class="foot-col"><h4 data-hr="Aplikacija" data-en="App">Aplikacija</h4>
+        <a href="https://orirora-wb4s.vercel.app" target="_blank" rel="noopener" data-hr="Prijava" data-en="Log in">Prijava</a>
+        <a href="https://orirora-wb4s.vercel.app" target="_blank" rel="noopener" data-hr="Otvori aplikaciju" data-en="Open the app">Otvori aplikaciju</a>
+      </div>
+      <div class="foot-col"><h4 data-hr="Kontakt" data-en="Contact">Kontakt</h4><a href="mailto:kontakt@ordiora.app">kontakt@ordiora.app</a></div>
+    </div>
+    <div class="foot-bottom"><span>© 2026 ORDIORA</span><span data-hr="Napravljeno s pažnjom za ugostitelje." data-en="Made with care for hospitality.">Napravljeno s pažnjom za ugostitelje.</span></div>
+  </div>
+</footer>
+
+<button id="toTop" aria-label="Na vrh"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+
+<script>
+(function(){
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var fine = matchMedia('(hover:hover) and (pointer:fine)').matches;
+  var lang = 'hr';
+
+  /* ---------- language (with word re-split) ---------- */
+  function splitWords(el){
+    var txt = el.getAttribute('data-'+lang) || el.textContent;
+    el.textContent = '';
+    txt.split(/\s+/).forEach(function(word,i){
+      var s = document.createElement('span'); s.className='w'; s.textContent = word;
+      s.style.transitionDelay = (i*0.05)+'s';
+      el.appendChild(s);
+      el.appendChild(document.createTextNode(' '));
+    });
+  }
+  function setLang(l){
+    lang = l; document.documentElement.lang = l;
+    document.querySelectorAll('[data-hr]').forEach(function(el){
+      if(el.classList.contains('words')) return; /* handled below */
+      var v = el.getAttribute('data-'+l); if(v!==null) el.textContent = v;
+    });
+    document.querySelectorAll('.words').forEach(function(el){
+      var wasIn = el.classList.contains('in'); splitWords(el);
+      if(wasIn) el.classList.add('in');
+    });
+    document.querySelectorAll('.lang button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-lang')===l); });
+  }
+  document.querySelectorAll('.lang button').forEach(function(b){ b.addEventListener('click', function(){ setLang(b.getAttribute('data-lang')); }); });
+
+  /* ---------- nav + toTop ---------- */
+  var nav = document.getElementById('nav'), toTop = document.getElementById('toTop');
+  function onScrollUi(){ var y=scrollY; nav.classList.toggle('scrolled', y>24); toTop.classList.toggle('show', y>700); }
+  toTop.addEventListener('click', function(){ scrollTo({top:0, behavior: reduce?'auto':'smooth'}); });
+
+  /* ---------- reveal + counters + word stagger ---------- */
+  function runCount(el){
+    var to = parseFloat(el.getAttribute('data-to'))||0;
+    if(reduce){ el.textContent = to; return; }
+    var start=null, dur=1100;
+    function step(t){ if(!start)start=t; var p=Math.min((t-start)/dur,1); var e=1-Math.pow(1-p,3);
+      el.textContent = Math.round(to*e); if(p<1) requestAnimationFrame(step); }
+    requestAnimationFrame(step);
+  }
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(!e.isIntersecting) return;
+      var el=e.target; el.classList.add('in');
+      el.querySelectorAll?.('.count').forEach?.(runCount);
+      if(el.classList.contains('count')) runCount(el);
+      io.unobserve(el);
+    });
+  }, { threshold:.18, rootMargin:'0px 0px -6% 0px' });
+  document.querySelectorAll('.reveal, .words').forEach(function(el){ io.observe(el); });
+  /* hero device counters fire once revealed (device is visible on load) */
+  var heroCount = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting){ e.target.querySelectorAll('.count').forEach(runCount); heroCount.unobserve(e.target); } });
+  }, { threshold:.3 });
+  var dev = document.getElementById('device'); if(dev) heroCount.observe(dev);
+
+  /* ---------- feature tabs ---------- */
+  document.querySelectorAll('.tab[data-tab]').forEach(function(t){
+    t.addEventListener('click', function(){ var id=t.getAttribute('data-tab');
+      document.querySelectorAll('.tab[data-tab]').forEach(function(x){ x.classList.toggle('on', x===t); });
+      document.querySelectorAll('.panel').forEach(function(p){ p.classList.toggle('on', p.getAttribute('data-panel')===id); });
+    });
+  });
+
+  /* ---------- living hero dashboard ---------- */
+  var guests = document.getElementById('guestsNum'), pending = document.getElementById('pendingNum'), rowsBox = document.getElementById('liveRows');
+  var extraGuests = [
+    {i:'NB', n:'Nina Babić', m:'19:30 · 2 · Stol 5', p:{hr:'Na čekanju',en:'Pending'}},
+    {i:'TK', n:'Tomo Kralj', m:'20:00 · 5 · Terasa', p:{hr:'Potvrđeno',en:'Confirmed'}},
+    {i:'LM', n:'Lea Matić', m:'22:00 · 2 · Stol 1', p:{hr:'Na čekanju',en:'Pending'}}
+  ];
+  var lp=0;
+  function livePulse(){
+    if(reduce||document.hidden) return;
+    var g = 60 + Math.floor(Math.random()*18); if(guests) guests.textContent = g;
+    var rows = rowsBox ? rowsBox.querySelectorAll('.row') : [];
+    if(rows.length){ rows.forEach(function(r){ r.classList.remove('flash'); }); rows[lp%rows.length].classList.add('flash'); lp++; }
+  }
+  var liveTimer;
+  if(!reduce){ liveTimer = setInterval(livePulse, 2600); }
+
+  /* ---------- magnetic buttons ---------- */
+  if(fine && !reduce){
+    document.querySelectorAll('.magnetic').forEach(function(b){
+      b.addEventListener('mousemove', function(ev){ var r=b.getBoundingClientRect();
+        var x=ev.clientX-(r.left+r.width/2), y=ev.clientY-(r.top+r.height/2);
+        b.style.transform='translate('+(x*0.28).toFixed(1)+'px,'+(y*0.4).toFixed(1)+'px)'; });
+      b.addEventListener('mouseleave', function(){ b.style.transform=''; });
+    });
+  }
+
+  /* ---------- spotlights ---------- */
+  if(fine){
+    document.querySelectorAll('.hero, .showcase, .cta-band').forEach(function(sec){
+      var sp = sec.querySelector('.spotlight'); if(!sp) return;
+      sec.addEventListener('mousemove', function(ev){ var r=sec.getBoundingClientRect();
+        sp.style.setProperty('--mx', ((ev.clientX-r.left)/r.width*100)+'%');
+        sp.style.setProperty('--my', ((ev.clientY-r.top)/r.height*100)+'%'); });
+    });
+  }
+
+  /* ---------- card 3D tilt ---------- */
+  if(fine && !reduce){
+    document.querySelectorAll('.card.tilt').forEach(function(c){
+      c.addEventListener('mousemove', function(ev){ var r=c.getBoundingClientRect();
+        var px=(ev.clientX-r.left)/r.width, py=(ev.clientY-r.top)/r.height;
+        c.style.transform='perspective(800px) rotateY('+((px-.5)*7).toFixed(2)+'deg) rotateX('+((.5-py)*7).toFixed(2)+'deg) translateY(-4px)';
+        var g=c.querySelector('.glow'); if(g){ g.style.setProperty('--gx',(px*100)+'%'); g.style.setProperty('--gy',(py*100)+'%'); } });
+      c.addEventListener('mouseleave', function(){ c.style.transform=''; });
+    });
+  }
+
+  /* ---------- hero: scroll tilt + mouse parallax ---------- */
+  var device = document.getElementById('device'), hero = document.getElementById('top');
+  var scrollP=0, mxN=0, myN=0;
+  function updateDevice(){
+    if(reduce||!device) return;
+    var rx = 12 - scrollP*20 + myN*4, ry = -9 + scrollP*15 + mxN*6, ty = scrollP*-26, sc = 1 - scrollP*0.05;
+    device.style.transform='perspective(1600px) rotateX('+rx.toFixed(2)+'deg) rotateY('+ry.toFixed(2)+'deg) translateY('+ty.toFixed(1)+'px) scale('+sc.toFixed(3)+')';
+  }
+  if(fine && !reduce){
+    hero.addEventListener('mousemove', function(ev){ var r=hero.getBoundingClientRect();
+      mxN=((ev.clientX-r.left)/r.width-.5)*2; myN=((ev.clientY-r.top)/r.height-.5)*2; updateDevice(); });
+    hero.addEventListener('mouseleave', function(){ mxN=0; myN=0; updateDevice(); });
+  }
+  if(!reduce && device) device.style.transform='perspective(1600px) rotateX(12deg) rotateY(-9deg)';
+
+  /* ---------- pinned showcase ---------- */
+  var showcase = document.getElementById('showcase'), phone=document.getElementById('phone'), scBar=document.getElementById('scBar');
+  var views = document.querySelectorAll('.sc-view'), steps=document.querySelectorAll('.sc-step');
+  var N = views.length, curStep=-1;
+  function updateShowcase(){
+    if(!showcase) return;
+    var r = showcase.getBoundingClientRect();
+    var total = showcase.offsetHeight - innerHeight;
+    var p = total>0 ? Math.min(Math.max(-r.top/total,0),1) : 0;
+    if(scBar) scBar.style.width = (p*100)+'%';
+    var idx = Math.min(N-1, Math.floor(p*N));
+    if(idx!==curStep){ curStep=idx;
+      views.forEach(function(v,i){ v.classList.toggle('on', i===idx); });
+      steps.forEach(function(s,i){ s.classList.toggle('on', i===idx); });
+    }
+    if(phone && !reduce && fine){
+      var ry = (p-0.5)*24; phone.style.transform='rotateY('+ry.toFixed(2)+'deg) rotateX('+((0.5-p)*4).toFixed(2)+'deg)';
+    }
+  }
+
+  var ticking=false;
+  addEventListener('scroll', function(){ scrollP = Math.min(Math.max(scrollY/(hero.offsetHeight||1),0),1);
+    if(!ticking){ requestAnimationFrame(function(){ onScrollUi(); updateDevice(); updateShowcase(); ticking=false; }); ticking=true; } }, {passive:true});
+  addEventListener('resize', updateShowcase);
+
+  /* ---------- ripple canvas ---------- */
+  var cv=document.getElementById('ripple'), ctx=cv.getContext('2d'), W,H,DPR, cxOff=0;
+  function resize(){ DPR=Math.min(devicePixelRatio||1,2); W=cv.clientWidth; H=cv.clientHeight; cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
+  function draw(now){
+    var t = reduce ? 0 : (now||0)/1000;
+    ctx.clearRect(0,0,W,H); ctx.fillStyle='#141312'; ctx.fillRect(0,0,W,H);
+    var cx=W*0.5 + mxN*30, cy=H*0.46 + myN*20;
+    var maxR=Math.hypot(Math.max(cx,W-cx),Math.max(cy,H-cy))+60, rings=46;
+    for(var i=rings;i>=1;i--){ var base=(i/rings)*maxR, wob=Math.sin(t*0.25+i*0.30)*7, r=base+wob;
+      var g=20+(i/rings)*26+Math.sin(t*0.4+i*0.5)*4;
+      ctx.beginPath(); ctx.ellipse(cx,cy,r*1.18,r*0.92,Math.sin(t*0.12+i*0.04)*0.12,0,Math.PI*2);
+      ctx.strokeStyle='rgb('+(g|0)+','+(g|0)+','+((g-1)|0)+')'; ctx.lineWidth=1.1+(i/rings)*1.6; ctx.stroke(); }
+    var vg=ctx.createRadialGradient(cx,cy,0,cx,cy,maxR); vg.addColorStop(0,'rgba(20,19,18,0)'); vg.addColorStop(1,'rgba(10,10,9,.8)');
+    ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+    if(!reduce) requestAnimationFrame(draw);
+  }
+  resize(); draw(0); addEventListener('resize', function(){ resize(); if(reduce) draw(0); });
+
+  /* ---------- hero circle draw ---------- */
+  var heroMark=document.getElementById('heroMark');
+
+  /* ---------- boot / preloader ---------- */
+  function boot(){
+    document.body.classList.add('ready');
+    if(heroMark){ if(reduce){ heroMark.classList.add('in'); } else { setTimeout(function(){ heroMark.classList.add('in'); }, 500); } }
+    onScrollUi(); updateShowcase();
+  }
+  var pl=document.getElementById('preloader');
+  setLang('hr');
+  if(reduce){ if(pl) pl.classList.add('done'); boot(); }
+  else{
+    addEventListener('load', function(){
+      setTimeout(function(){ if(pl) pl.classList.add('done'); boot(); }, 1500);
+    });
+    /* safety: if load already fired */
+    setTimeout(function(){ if(!document.body.classList.contains('ready')){ if(pl) pl.classList.add('done'); boot(); } }, 2600);
+  }
+})();
+</script>
+
+</body>
+</html>
