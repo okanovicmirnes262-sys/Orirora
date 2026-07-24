@@ -93,13 +93,20 @@ server-side `WHOP_API_KEY`, and the result is cached on the restaurant record
 (`{ license, entitledUntil }`) so staff and every later login need nothing. Access is
 re-checked on load, so a cancelled subscription loses access.
 
+Validation uses Whop's v2 endpoint
+`POST /api/v2/memberships/{licenseKey}/validate_license` (license key in the path,
+success = HTTP 201; empty metadata so a key isn't locked to one device — the app runs
+on many staff devices under one restaurant).
+
 Setup (owner):
-1. In Whop, for the plan (`WHOP_PLAN_ID`), enable **license keys** and get your **API key**.
+1. In Whop, make sure the plan (`WHOP_PLAN_ID`) delivers **license keys** to buyers, and
+   create an **API key** (Whop dashboard → Settings → Developer) with read access to
+   memberships.
 2. In the app's **Vercel project → Environment Variables**, set `WHOP_API_KEY` and
    `WHOP_PLAN_ID` (see `.env.example`), then redeploy. These are server-side only and
    never reach the browser.
-3. Confirm the exact Whop license-validation endpoint for your account; override it with
-   `WHOP_VALIDATE_URL` if it differs from the v2 default in `api/whop/activate.ts`.
+3. Test with a real license key (from the buyer's Whop "Downloads & Keys"); if a valid
+   key is wrongly rejected, adjust the field parsing in `api/whop/activate.ts`.
 
 Note: this gate stops the normal bypass, but the app is still a client-side SPA whose
 Supabase anon key ships in the bundle with open RLS — a technically skilled person could
