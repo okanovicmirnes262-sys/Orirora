@@ -83,6 +83,29 @@ Still open for a public production deployment: the `kv_store` policy grants the
 Security policies accordingly. The schema file documents this in more detail.
 Password hashing requires a secure context (https or localhost).
 
+## Subscription gate (Whop)
+
+Using the app requires an **active Whop subscription** — but clients never sign in
+with Whop. Login stays **restaurant name + password**; the only Whop touchpoint is a
+one-time checkout. After subscribing, the owner pastes their **license key** once on
+the paywall; a serverless function (`api/whop/*`) validates it against Whop with the
+server-side `WHOP_API_KEY`, and the result is cached on the restaurant record
+(`{ license, entitledUntil }`) so staff and every later login need nothing. Access is
+re-checked on load, so a cancelled subscription loses access.
+
+Setup (owner):
+1. In Whop, for the plan (`WHOP_PLAN_ID`), enable **license keys** and get your **API key**.
+2. In the app's **Vercel project → Environment Variables**, set `WHOP_API_KEY` and
+   `WHOP_PLAN_ID` (see `.env.example`), then redeploy. These are server-side only and
+   never reach the browser.
+3. Confirm the exact Whop license-validation endpoint for your account; override it with
+   `WHOP_VALIDATE_URL` if it differs from the v2 default in `api/whop/activate.ts`.
+
+Note: this gate stops the normal bypass, but the app is still a client-side SPA whose
+Supabase anon key ships in the bundle with open RLS — a technically skilled person could
+reach the data directly. Fully airtight access control means moving data behind
+authenticated server endpoints and tightening RLS (a larger, separate step).
+
 ## Mobile
 
 The UI is designed for phones and adapts up to a 520px content column on
