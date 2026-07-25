@@ -286,6 +286,27 @@
   #toTop.show{ opacity:1; transform:none; pointer-events:auto; }
   #toTop:hover{ box-shadow:0 12px 30px -12px rgba(0,0,0,.5); }
 
+  /* testimonials */
+  .venue-line{ text-align:center; font-size:12.5px; letter-spacing:.03em; color:var(--ink-faint); margin:-6px 0 34px; }
+  .tgrid{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+  .tcard{ position:relative; overflow:hidden; background:var(--surface); border:1px solid var(--hairline); border-radius:20px; padding:26px 24px; display:flex; flex-direction:column; }
+  .tcard::before{ content:"\201C"; font-family:var(--serif); font-size:64px; line-height:1; color:var(--hairline-strong); position:absolute; top:8px; right:18px; }
+  .tcard .q{ position:relative; font-family:var(--serif); font-size:19px; line-height:1.45; color:var(--ink); }
+  .tcard .who{ display:flex; align-items:center; gap:12px; margin-top:auto; padding-top:22px; }
+  .tcard .av{ width:40px; height:40px; border-radius:50%; background:var(--surface-alt); border:1px solid var(--hairline); display:grid; place-items:center; font-family:var(--serif); font-size:15px; color:var(--ink-sub); flex:none; }
+  .tcard .nm{ font-size:13.5px; font-weight:700; color:var(--ink); }
+  .tcard .rl{ font-size:12px; color:var(--ink-faint); margin-top:2px; }
+
+  /* FAQ */
+  .faq{ max-width:760px; margin:0 auto; }
+  .faq details{ border-top:1px solid var(--hairline); }
+  .faq details:last-child{ border-bottom:1px solid var(--hairline); }
+  .faq summary{ list-style:none; cursor:pointer; padding:20px 42px 20px 2px; position:relative; font-family:var(--serif); font-size:18.5px; color:var(--ink); }
+  .faq summary::-webkit-details-marker{ display:none; }
+  .faq summary::after{ content:"+"; position:absolute; right:6px; top:50%; transform:translateY(-50%); font-size:22px; color:var(--ink-faint); }
+  .faq details[open] summary::after{ content:"\2013"; }
+  .faq .fa{ padding:0 42px 18px 2px; color:var(--ink-sub); font-size:14.5px; line-height:1.65; }
+
   .reveal{ opacity:0; transform:translateY(26px); transition:opacity .7s cubic-bezier(.2,.7,.3,1), transform .7s cubic-bezier(.2,.7,.3,1); }
   .reveal.in{ opacity:1; transform:none; }
   .reveal[data-d="1"]{ transition-delay:.07s; } .reveal[data-d="2"]{ transition-delay:.14s; }
@@ -297,6 +318,7 @@
     .bento{ grid-template-columns:repeat(2,1fr); } .card.sp3,.card.sp2{ grid-column:span 2; }
     .feat{ grid-template-columns:1fr; gap:26px; } .stat-row{ grid-template-columns:repeat(2,1fr); }
     .why{ grid-template-columns:1fr; } .stats-grid{ grid-template-columns:1fr; gap:14px; }
+    .tgrid{ grid-template-columns:1fr; }
     .nav-links{ display:none; }
     .sc-inner{ grid-template-columns:1fr; gap:18px; justify-items:center; text-align:center; }
     .sc-copy{ order:2; } .phone-wrap{ order:1; }
@@ -342,6 +364,7 @@
       <a href="#features" data-hr="Značajke" data-en="Features">Značajke</a>
       <a href="#showcase" data-hr="Pregled" data-en="Tour">Pregled</a>
       <a href="#how" data-hr="Kako radi" data-en="How it works">Kako radi</a>
+      <a href="#faq" data-hr="Pitanja" data-en="FAQ">Pitanja</a>
       <a href="#contact" data-hr="Kontakt" data-en="Contact">Kontakt</a>
     </div>
     <div class="nav-right">
@@ -584,6 +607,71 @@
       <div class="why-item reveal" data-d="2"><span class="n">02</span><div><h3 data-hr="Za cijeli tim" data-en="For the whole team">Za cijeli tim</h3><p data-hr="Vlasnik postavlja restoran i dodaje osoblje; svatko vidi točno ono što treba." data-en="The owner sets up the restaurant and adds staff; everyone sees exactly what they need.">Vlasnik postavlja restoran i dodaje osoblje; svatko vidi točno ono što treba.</p></div></div>
       <div class="why-item reveal" data-d="3"><span class="n">03</span><div><h3 data-hr="Sigurno" data-en="Secure">Sigurno</h3><p data-hr="Lozinke su enkriptirane (jednosmjerni hash), a podaci se čuvaju u oblaku." data-en="Passwords are hashed (one-way), and data is kept in the cloud.">Lozinke su enkriptirane (jednosmjerni hash), a podaci se čuvaju u oblaku.</p></div></div>
       <div class="why-item reveal" data-d="4"><span class="n">04</span><div><h3 data-hr="Prilagodljivo" data-en="Adaptive">Prilagodljivo</h3><p data-hr="Isto sučelje, savršeno na mobitelu u sali i na računalu u uredu." data-en="The same interface, perfect on a phone on the floor and a desktop in the office.">Isto sučelje, savršeno na mobitelu u sali i na računalu u uredu.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS (illustrative samples — replace with real quotes as customers arrive) -->
+<section class="band" id="stories" style="padding-top:0">
+  <div class="wrap">
+    <div class="band-head reveal">
+      <span class="eyebrow" data-hr="Iskustva" data-en="Stories">Iskustva</span>
+      <h2 class="words" data-hr="Ugostitelji koji su prestali gasiti požare." data-en="Hospitality teams who stopped firefighting.">Ugostitelji koji su prestali gasiti požare.</h2>
+    </div>
+    <div class="venue-line reveal" data-hr="Za restorane · konobe · bistroe · caffe barove · pizzerije" data-en="For restaurants · taverns · bistros · cafés · pizzerias">Za restorane · konobe · bistroe · caffe barove · pizzerije</div>
+    <div class="tgrid">
+      <div class="tcard reveal" data-d="1">
+        <p class="q" data-hr="Prije smo rezervacije vodili u bilježnici i stalno su se događali dupli stolovi. S ORDIORA-om toga više nema — sve vidim na mobitelu." data-en="We used to track bookings in a notebook and kept double-booking tables. With ORDIORA that's gone — I see everything on my phone.">Prije smo rezervacije vodili u bilježnici i stalno su se događali dupli stolovi. S ORDIORA-om toga više nema — sve vidim na mobitelu.</p>
+        <div class="who"><span class="av">AH</span><div><div class="nm">Ana H.</div><div class="rl" data-hr="vlasnica · Konoba Marea, Split" data-en="owner · Konoba Marea, Split">vlasnica · Konoba Marea, Split</div></div></div>
+      </div>
+      <div class="tcard reveal" data-d="2">
+        <p class="q" data-hr="Kuhinja i sala napokon komuniciraju bez vike. Smjene i rezervacije na jednom mjestu uštede nam sat vremena dnevno." data-en="Kitchen and floor finally talk without shouting. Shifts and bookings in one place save us an hour a day.">Kuhinja i sala napokon komuniciraju bez vike. Smjene i rezervacije na jednom mjestu uštede nam sat vremena dnevno.</p>
+        <div class="who"><span class="av">MP</span><div><div class="nm">Marko P.</div><div class="rl" data-hr="voditelj · Bistro Lovor, Zagreb" data-en="manager · Bistro Lovor, Zagreb">voditelj · Bistro Lovor, Zagreb</div></div></div>
+      </div>
+      <div class="tcard reveal" data-d="3">
+        <p class="q" data-hr="Postavljanje je trajalo pet minuta i cijeli tim je odmah znao koristiti. Analitika mi konačno pokazuje špice." data-en="Setup took five minutes and the whole team got it instantly. Analytics finally shows me our peak hours.">Postavljanje je trajalo pet minuta i cijeli tim je odmah znao koristiti. Analitika mi konačno pokazuje špice.</p>
+        <div class="who"><span class="av">IK</span><div><div class="nm">Ivana K.</div><div class="rl" data-hr="vlasnica · Caffe &amp; Kitchen, Rijeka" data-en="owner · Caffe &amp; Kitchen, Rijeka">vlasnica · Caffe &amp; Kitchen, Rijeka</div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="band" id="faq" style="padding-top:0">
+  <div class="wrap">
+    <div class="band-head reveal">
+      <span class="eyebrow" data-hr="Česta pitanja" data-en="FAQ">Česta pitanja</span>
+      <h2 class="words" data-hr="Sve što vas zanima." data-en="Everything you're wondering.">Sve što vas zanima.</h2>
+    </div>
+    <div class="faq reveal">
+      <details>
+        <summary data-hr="Trebam li instalirati aplikaciju?" data-en="Do I need to install anything?">Trebam li instalirati aplikaciju?</summary>
+        <div class="fa" data-hr="Ne. Otvara se u pregledniku i može se dodati na početni zaslon — radi kao prava aplikacija, bez preuzimanja iz trgovine." data-en="No. It runs in the browser and can be added to your home screen — it works like a native app, with no app-store download.">Ne. Otvara se u pregledniku i može se dodati na početni zaslon — radi kao prava aplikacija, bez preuzimanja iz trgovine.</div>
+      </details>
+      <details>
+        <summary data-hr="Radi li na mobitelu i računalu?" data-en="Does it work on phone and desktop?">Radi li na mobitelu i računalu?</summary>
+        <div class="fa" data-hr="Da — isto sučelje na telefonu, tabletu i računalu. Konobar na mobitelu u sali, vlasnik na računalu u uredu." data-en="Yes — the same interface on phone, tablet and desktop. A waiter on a phone on the floor, the owner on a desktop in the office.">Da — isto sučelje na telefonu, tabletu i računalu. Konobar na mobitelu u sali, vlasnik na računalu u uredu.</div>
+      </details>
+      <details>
+        <summary data-hr="Kako počinjem?" data-en="How do I start?">Kako počinjem?</summary>
+        <div class="fa" data-hr="Klikni „Isprobaj besplatno", postavi restoran u nekoliko minuta i dodaj svoj tim. Bez ugovora i bez instalacije." data-en="Click “Start free trial”, set up your restaurant in a few minutes and add your team. No contract, no install.">Klikni „Isprobaj besplatno", postavi restoran u nekoliko minuta i dodaj svoj tim. Bez ugovora i bez instalacije.</div>
+      </details>
+      <details>
+        <summary data-hr="Mogu li dodati konobare i kuhare?" data-en="Can I add waiters and chefs?">Mogu li dodati konobare i kuhare?</summary>
+        <div class="fa" data-hr="Da. Vlasnik dodaje osoblje s ulogama (konobar, kuhar), a svatko vidi samo ono što mu treba — od rezervacija do chata Sala/Kuhinja." data-en="Yes. The owner adds staff with roles (waiter, chef), and each person sees only what they need — from bookings to the Floor/Kitchen chat.">Da. Vlasnik dodaje osoblje s ulogama (konobar, kuhar), a svatko vidi samo ono što mu treba — od rezervacija do chata Sala/Kuhinja.</div>
+      </details>
+      <details>
+        <summary data-hr="Jesu li podaci sigurni?" data-en="Is my data safe?">Jesu li podaci sigurni?</summary>
+        <div class="fa" data-hr="Podaci se čuvaju u oblaku, a lozinke su enkriptirane jednosmjernim hashom — nikad se ne spremaju kao čisti tekst." data-en="Data is kept in the cloud and passwords are one-way hashed — never stored in plain text.">Podaci se čuvaju u oblaku, a lozinke su enkriptirane jednosmjernim hashom — nikad se ne spremaju kao čisti tekst.</div>
+      </details>
+      <details>
+        <summary data-hr="Podržava li hrvatski jezik?" data-en="Does it support Croatian?">Podržava li hrvatski jezik?</summary>
+        <div class="fa" data-hr="Da, sučelje je dvojezično — hrvatski i engleski, uz prekidač jednim klikom." data-en="Yes, the interface is bilingual — Croatian and English, switchable in one click.">Da, sučelje je dvojezično — hrvatski i engleski, uz prekidač jednim klikom.</div>
+      </details>
+      <details>
+        <summary data-hr="Što se događa nakon besplatne probe?" data-en="What happens after the free trial?">Što se događa nakon besplatne probe?</summary>
+        <div class="fa" data-hr="Nastavljaš pretplatom, a otkažeš kad želiš. Svi tvoji podaci ostaju sačuvani." data-en="You continue with a subscription and can cancel whenever you like. All your data stays intact.">Nastavljaš pretplatom, a otkažeš kad želiš. Svi tvoji podaci ostaju sačuvani.</div>
+      </details>
     </div>
   </div>
 </section>
