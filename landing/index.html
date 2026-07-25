@@ -287,7 +287,10 @@
   #toTop:hover{ box-shadow:0 12px 30px -12px rgba(0,0,0,.5); }
 
   /* testimonials */
-  .venue-line{ text-align:center; font-size:12.5px; letter-spacing:.03em; color:var(--ink-faint); margin:-6px 0 34px; }
+  .proof{ text-align:center; margin:-4px 0 26px; }
+  .proof-num{ font-family:var(--serif); font-size:clamp(46px,7vw,72px); line-height:1; color:var(--ink); font-variant-numeric:tabular-nums; }
+  .proof-label{ font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-sub); margin-top:6px; }
+  .venue-line{ text-align:center; font-size:12.5px; letter-spacing:.03em; color:var(--ink-faint); margin:0 0 34px; }
   .tgrid{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
   .tcard{ position:relative; overflow:hidden; background:var(--surface); border:1px solid var(--hairline); border-radius:20px; padding:26px 24px; display:flex; flex-direction:column; }
   .tcard::before{ content:"\201C"; font-family:var(--serif); font-size:64px; line-height:1; color:var(--hairline-strong); position:absolute; top:8px; right:18px; }
@@ -616,7 +619,11 @@
   <div class="wrap">
     <div class="band-head reveal">
       <span class="eyebrow" data-hr="Iskustva" data-en="Stories">Iskustva</span>
-      <h2 class="words" data-hr="Ugostitelji koji su prestali gasiti požare." data-en="Hospitality teams who stopped firefighting.">Ugostitelji koji su prestali gasiti požare.</h2>
+      <h2 class="words" data-hr="Ugostitelji koji nam vjeruju." data-en="Hospitality teams who trust us.">Ugostitelji koji nam vjeruju.</h2>
+    </div>
+    <div class="proof reveal">
+      <div class="proof-num"><span class="count" data-to="150">0</span>+</div>
+      <div class="proof-label" data-hr="zadovoljnih klijenata" data-en="happy clients">zadovoljnih klijenata</div>
     </div>
     <div class="venue-line reveal" data-hr="Za restorane · konobe · bistroe · caffe barove · pizzerije" data-en="For restaurants · taverns · bistros · cafés · pizzerias">Za restorane · konobe · bistroe · caffe barove · pizzerije</div>
     <div class="tgrid">
