@@ -64,6 +64,17 @@
   .nav{ position:fixed; inset:0 0 auto 0; z-index:50; display:flex; justify-content:center;
     transition:background .3s, border-color .3s, backdrop-filter .3s; border-bottom:1px solid transparent; }
   .nav.scrolled{ background:rgba(244,243,240,.82); backdrop-filter:blur(12px); border-bottom-color:var(--hairline); }
+  /* Over the dark hero (before scroll) invert nav colors so the CTA + wordmark read. */
+  .nav:not(.scrolled) .brand{ color:var(--on-dark); }
+  .nav:not(.scrolled) .nav-links a{ color:var(--on-dark-sub); }
+  .nav:not(.scrolled) .nav-links a:hover{ color:var(--on-dark); }
+  .nav:not(.scrolled) .nav-links a::after{ background:var(--on-dark); }
+  .nav:not(.scrolled) .btn-solid{ background:var(--on-dark); color:var(--dark); }
+  .nav:not(.scrolled) .btn-ghost{ color:var(--on-dark); border-color:rgba(255,255,255,.28); }
+  .nav:not(.scrolled) .btn-ghost:hover{ background:rgba(255,255,255,.08); }
+  .nav:not(.scrolled) .lang{ background:rgba(255,255,255,.10); border-color:rgba(255,255,255,.24); }
+  .nav:not(.scrolled) .lang button{ color:var(--on-dark-sub); }
+  .nav:not(.scrolled) .lang button.on{ background:var(--on-dark); color:var(--dark); }
   .nav-inner{ width:100%; max-width:var(--maxw); display:flex; align-items:center; gap:20px; padding:14px 24px; }
   .brand{ display:flex; align-items:center; gap:10px; font-family:var(--serif); font-size:20px; letter-spacing:1.5px; }
   .nav-links{ display:flex; gap:26px; margin-left:14px; }
@@ -334,6 +345,13 @@
     .band{ padding:74px 0; } .hide-sm{ display:none !important; }
     .bento{ grid-template-columns:1fr; } .card.sp3,.card.sp2{ grid-column:span 1; }
     .stage{ margin-bottom:-40px; } .phone{ width:230px; height:440px; }
+    /* keep the nav on one line on phones (was clipping the CTA off-screen) */
+    .nav-inner{ padding:12px 14px; gap:10px; }
+    .brand{ font-size:17px; letter-spacing:.5px; gap:8px; }
+    .brand svg{ width:26px; height:26px; }
+    .nav-right{ gap:8px; }
+    .nav .btn{ padding:8px 13px; font-size:12.5px; }
+    .lang button{ padding:5px 9px; font-size:11.5px; }
   }
   @media (prefers-reduced-motion:reduce){
     html{ scroll-behavior:auto; }
