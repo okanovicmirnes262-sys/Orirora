@@ -5,7 +5,8 @@ import {
   ChefHat, UtensilsCrossed, Phone, Mail, User as UserIcon, LayoutGrid,
   Settings as SettingsIcon, ArrowDownRight, Wine, MoreHorizontal,
   CircleUser, Loader2, ChevronDown, Trash2, Copy, CheckCircle2, Store,
-  KeyRound, Search, Eye, EyeOff, Pencil, Minus
+  KeyRound, Search, Eye, EyeOff, Pencil, Minus,
+  HelpCircle, X, Send, Sparkles
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar,
@@ -329,6 +330,18 @@ const HR = {
   "Waiter": "Konobar",
   "Chef": "Kuhar",
   "Staff": "Osoblje",
+
+  // — Help / FAQ bot —
+  "Help": "Pomoć",
+  "Ordiora Assistant": "Ordiora pomoćnik",
+  "Answers about the app": "Odgovori o aplikaciji",
+  "Ask about the app…": "Pitajte o aplikaciji…",
+  "Popular questions": "Česta pitanja",
+  "Hi! I'm here to help you use ORDIORA. Ask me anything, or pick a question below.": "Bok! Tu sam da vam pomognem koristiti ORDIORA. Pitajte što god želite ili odaberite pitanje ispod.",
+  "I'm not sure I understood that. Try one of these questions:": "Nisam siguran da sam to razumio. Probajte jedno od ovih pitanja:",
+  "Was this helpful, or want another topic?": "Je li ovo pomoglo ili trebate drugu temu?",
+  "Send": "Pošalji",
+  "Show topics": "Prikaži teme",
 };
 
 function tr(s) {
@@ -344,6 +357,251 @@ function plural(n, en, hr) {
   if (d === 1) return hr[0];
   if (d >= 2 && d <= 4) return hr[1];
   return hr[2];
+}
+
+/* ------------------------------------------------------------------ */
+/*  Help / FAQ bot — scripted, offline, bilingual (no AI, no backend)  */
+/* ------------------------------------------------------------------ */
+/* A curated knowledge base about the app. Each entry has a question label
+   (q), keyword stems (kw, diacritic-free) used to match free-typed questions,
+   and a multi-line answer (a). Content is stored per language and picked by
+   `lang`; the surrounding chat chrome uses tr(). Nothing here calls the
+   network — answers are deterministic and can never hallucinate. */
+const HELP_FAQ = [
+  {
+    id: "what",
+    q: { hr: "Što je ORDIORA?", en: "What is ORDIORA?" },
+    kw: ["sto je", "what is", "ordiora", "aplikacij", "cemu sluz", "about", "sto radi"],
+    a: {
+      hr: ["ORDIORA je sustav za vođenje restorana — sve na jednom mjestu: rezervacije i stolovi, smjene osoblja, timski chat i analitika.",
+        "Radi na mobitelu i računalu, a podaci se sinkroniziraju na svim uređajima koji otvore isti restoran."],
+      en: ["ORDIORA is a restaurant management system — everything in one place: reservations and tables, staff shifts, team chat and analytics.",
+        "It works on phone and desktop, and data syncs across every device that opens the same restaurant."],
+    },
+  },
+  {
+    id: "features",
+    q: { hr: "Koje značajke ima?", en: "What features does it have?" },
+    kw: ["znacajk", "feature", "opcij", "sto sve", "funkcij", "moguc", "sto nudi"],
+    a: {
+      hr: ["Glavne značajke:",
+        "• Rezervacije — kreiranje i uređivanje uz provjeru zauzetosti stola",
+        "• Stolovi & zone — postavljanje rasporeda sale",
+        "• Smjene — tjedni raspored osoblja",
+        "• Tim — uloge vlasnik / konobar / kuhar",
+        "• Chat — kanali Općenito / Sala / Kuhinja",
+        "• Analitika — trendovi, najprometniji sati, statusi",
+        "• Zamolbe — praćenje gostiju nakon posjeta"],
+      en: ["Main features:",
+        "• Reservations — create/edit with table-conflict checks",
+        "• Tables & zones — lay out your floor",
+        "• Shifts — weekly staff schedule",
+        "• Team — owner / waiter / chef roles",
+        "• Chat — General / Floor / Kitchen channels",
+        "• Analytics — trends, peak hours, statuses",
+        "• Follow-ups — track guests after their visit"],
+    },
+  },
+  {
+    id: "add-reservation",
+    q: { hr: "Kako dodati rezervaciju?", en: "How do I add a reservation?" },
+    kw: ["rezervacij", "rezervir", "booking", "book", "dodaj", "dodati", "nova", "novu", "kreira", "napravi", "new", "add"],
+    a: {
+      hr: ["1. Otvorite Rezervacije (ili „Nova rezervacija\" na Nadzornoj ploči).",
+        "2. Kliknite Nova rezervacija.",
+        "3. Upišite ime gosta, datum, vrijeme, broj gostiju i odaberite stol.",
+        "4. Spremite — aplikacija upozorava ako je stol već zauzet u tom terminu.",
+        "Napomena: rezervacije mogu dodavati vlasnik i konobar."],
+      en: ["1. Open Bookings (or “New reservation” on the Dashboard).",
+        "2. Click New reservation.",
+        "3. Enter the guest name, date, time, party size and pick a table.",
+        "4. Save — the app warns you if the table is already taken at that time.",
+        "Note: owners and waiters can add reservations."],
+    },
+  },
+  {
+    id: "edit-reservation",
+    q: { hr: "Kako urediti ili otkazati rezervaciju?", en: "How do I edit or cancel a reservation?" },
+    kw: ["rezervacij", "uredi", "uredit", "izmijeni", "otkaz", "obris", "izbris", "promijeni rezerv", "edit", "cancel", "delete"],
+    a: {
+      hr: ["Otvorite Rezervacije i dodirnite rezervaciju s popisa.",
+        "Ondje možete promijeniti detalje, postaviti status (npr. Potvrđeno, Sjedi, Završeno, Otkazano) ili je obrisati."],
+      en: ["Open Bookings and tap a reservation in the list.",
+        "There you can change details, set its status (e.g. Confirmed, Seated, Completed, Cancelled) or delete it."],
+    },
+  },
+  {
+    id: "statuses",
+    q: { hr: "Što znače statusi rezervacija?", en: "What do the reservation statuses mean?" },
+    kw: ["status", "na cekanju", "potvrd", "sjedi", "zavrsen", "nije dosao", "no show", "pending", "confirmed", "znac"],
+    a: {
+      hr: ["• Na čekanju — zaprimljena, još nije potvrđena",
+        "• Potvrđeno — gost dolazi",
+        "• Sjedi — gost je za stolom",
+        "• Završeno — posjet gotov",
+        "• Otkazano — rezervacija otkazana",
+        "• Nije došao — gost se nije pojavio"],
+      en: ["• Pending — received, not confirmed yet",
+        "• Confirmed — the guest is coming",
+        "• Seated — guest is at the table",
+        "• Completed — visit finished",
+        "• Cancelled — reservation cancelled",
+        "• No-show — the guest didn't arrive"],
+    },
+  },
+  {
+    id: "tables",
+    q: { hr: "Kako postaviti stolove i zone?", en: "How do I set up tables and zones?" },
+    kw: ["stol", "zon", "table", "kapacitet", "seats", "raspored sale"],
+    a: {
+      hr: ["Otvorite Postavke → Stolovi. Ovdje dodajete stolove, njihov kapacitet (broj mjesta) i zonu (npr. Terasa, Unutra, Šank).",
+        "Stolove možete postaviti i pri prvom postavljanju restorana. Zone pomažu grupirati stolove i biraju se pri rezervaciji."],
+      en: ["Open Settings → Tables. Here you add tables, their capacity (seats) and a zone (e.g. Terrace, Inside, Bar).",
+        "You can also set tables during the initial restaurant setup. Zones group tables and are picked when booking."],
+    },
+  },
+  {
+    id: "shifts",
+    q: { hr: "Kako napraviti raspored smjena?", en: "How do I schedule shifts?" },
+    kw: ["smjen", "raspored", "shift", "schedule", "slobodan", "day off", "radno vrijeme", "dodaj", "dodati"],
+    a: {
+      hr: ["1. Otvorite Smjene.",
+        "2. Odaberite dan i kliknite Dodaj smjenu.",
+        "3. Odaberite djelatnika i upišite početak i kraj — ili označite Slobodan dan.",
+        "Raspored je tjedni i vidljiv cijelom timu."],
+      en: ["1. Open Shifts.",
+        "2. Pick a day and click Add shift.",
+        "3. Choose the staff member and set start/end — or mark it a Day off.",
+        "The schedule is weekly and visible to the whole team."],
+    },
+  },
+  {
+    id: "team",
+    q: { hr: "Kako dodati člana tima?", en: "How do I add a team member?" },
+    kw: ["clan", "osoblj", "tim", "konobar", "kuhar", "zaposlen", "team", "member", "staff", "uloge", "uloga", "role", "dodaj", "dodati"],
+    a: {
+      hr: ["Otvorite Tim i (kao vlasnik) kliknite gumb + gore desno.",
+        "Upišite ime i odaberite ulogu — Konobar ili Kuhar. Aplikacija automatski generira njihovu prijavu (e-mail i lozinku) koja se prikaže jednom.",
+        "Uloge: Vlasnik (sve), Konobar (rezervacije + Sala chat), Kuhar (Kuhinja chat)."],
+      en: ["Open Team and (as owner) click the + button top-right.",
+        "Enter a name and pick a role — Waiter or Chef. The app auto-generates their login (email and password), shown once.",
+        "Roles: Owner (everything), Waiter (reservations + Floor chat), Chef (Kitchen chat)."],
+    },
+  },
+  {
+    id: "chat",
+    q: { hr: "Kako radi timski chat?", en: "How does team chat work?" },
+    kw: ["chat", "poruk", "razgovor", "kanal", "opcenit", "kuhinj", "message", "channel"],
+    a: {
+      hr: ["Chat ima tri kanala:",
+        "• Općenito — svi",
+        "• Sala — vlasnik + konobari",
+        "• Kuhinja — vlasnik + kuhari",
+        "Vidite točno one kanale u kojima smijete pisati, ovisno o svojoj ulozi."],
+      en: ["Chat has three channels:",
+        "• General — everyone",
+        "• Floor — owner + waiters",
+        "• Kitchen — owner + chefs",
+        "You see exactly the channels you're allowed to post in, based on your role."],
+    },
+  },
+  {
+    id: "analytics",
+    q: { hr: "Kako čitati analitiku?", en: "How do I read the analytics?" },
+    kw: ["analitik", "analytics", "statistik", "graf", "izvjestaj", "trend", "najprometnij", "popunjenost", "chart", "report"],
+    a: {
+      hr: ["Otvorite Analitiku. Na vrhu su ukupne brojke (rezervacije, gosti, popunjenost, nedolasci), a ispod grafovi: rezervacije kroz vrijeme, najprometniji sati i pregled statusa.",
+        "Vlasnik vidi cijeli restoran; osoblje vidi svoju analitiku."],
+      en: ["Open Analytics. The top shows totals (reservations, guests, occupancy, no-shows), with charts below: reservations over time, peak hours and a status breakdown.",
+        "Owners see the whole restaurant; staff see their own analytics."],
+    },
+  },
+  {
+    id: "theme-lang",
+    q: { hr: "Kako promijeniti temu ili jezik?", en: "How do I change theme or language?" },
+    kw: ["tema", "temu", "svijetl", "tamn", "theme", "dark", "light", "jezik", "language", "hrvatsk", "englesk"],
+    a: {
+      hr: ["Svijetli/tamni način prebacujete iz bočnog izbornika (na računalu) ili u Postavkama.",
+        "Jezik (hrvatski/engleski) mijenjate u Postavkama. Odabir se pamti na uređaju."],
+      en: ["Toggle light/dark from the side menu (on desktop) or in Settings.",
+        "Change the language (Croatian/English) in Settings. Your choice is remembered on the device."],
+    },
+  },
+  {
+    id: "password",
+    q: { hr: "Zaboravio sam lozinku — što sad?", en: "I forgot my password — what now?" },
+    kw: ["lozink", "zaboravi", "reset", "password", "forgot", "oporav", "recovery", "kod za", "prijav", "login", "sign in"],
+    a: {
+      hr: ["Vlasnik: na prijavi kliknite „Zaboravili ste lozinku?\" i upišite Kod za oporavak (prikazan pri postavljanju, vidljiv u Postavkama). Postavite novu lozinku.",
+        "Osoblje: vlasnik vam u Timu može resetirati lozinku — nova se prikaže jednom."],
+      en: ["Owner: on the sign-in screen click “Forgot password?” and enter your Recovery code (shown at setup, viewable in Settings). Set a new password.",
+        "Staff: the owner can reset your password from Team — the new one is shown once."],
+    },
+  },
+  {
+    id: "switch",
+    q: { hr: "Kako promijeniti restoran?", en: "How do I switch restaurant?" },
+    kw: ["restoran", "prebaci", "switch", "workspace", "drugi restoran", "promjena restor", "change restaurant"],
+    a: {
+      hr: ["U bočnom izborniku (računalo) ili izborniku Više odaberite Promijeni restoran da se prebacite ili prijavite u drugi restoran.",
+        "Svaki restoran ima svoje odvojene podatke."],
+      en: ["In the side menu (desktop) or the More menu choose Switch restaurant to change or sign in to another restaurant.",
+        "Each restaurant keeps its own separate data."],
+    },
+  },
+  {
+    id: "followups",
+    q: { hr: "Što su Zamolbe (follow-ups)?", en: "What are Follow-ups?" },
+    kw: ["zamolb", "follow up", "followup", "nakon posjeta", "podsjetnik", "recenzij", "review"],
+    a: {
+      hr: ["Zamolbe vam pomažu da se javite gostima nakon posjeta — npr. zahvala ili poziv da ostave recenziju.",
+        "Otvorite Zamolbe (dostupno vlasniku i konobaru) za popis gostiju za kontakt."],
+      en: ["Follow-ups help you reach guests after their visit — e.g. a thank-you or a review request.",
+        "Open Follow-ups (available to owner and waiter) for the list of guests to contact."],
+    },
+  },
+  {
+    id: "data",
+    q: { hr: "Gdje se spremaju podaci?", en: "Where is my data stored?" },
+    kw: ["podac", "podatk", "spremanj", "sinkroniz", "sync", "backup", "cloud", "oblak", "storage", "sigurno", "gdje se sprem"],
+    a: {
+      hr: ["Podaci restorana (rezervacije, stolovi, smjene, chat…) spremaju se u oblak i sinkroniziraju na svim uređajima koji otvore isti restoran.",
+        "Na uređaju ostaju samo odabrani restoran, „zapamti me\" i tema/jezik."],
+      en: ["Your restaurant data (reservations, tables, shifts, chat…) is stored in the cloud and syncs across every device that opens the same restaurant.",
+        "Only the selected restaurant, “remember me” and theme/language stay on the device."],
+    },
+  },
+  {
+    id: "support",
+    q: { hr: "Trebam dodatnu pomoć", en: "I need more help" },
+    kw: ["podrsk", "kontakt", "support", "contact", "problem", "gresk", "ne radi", "pomoc oko"],
+    a: {
+      hr: ["Za pitanja koja ovdje nisu pokrivena javite se timu podrške putem kontakta na web stranici ORDIORA.",
+        "Opišite što ste radili i što se dogodilo — pomoći ćemo što prije."],
+      en: ["For anything not covered here, reach the support team via the contact on the ORDIORA website.",
+        "Describe what you did and what happened — we'll help as soon as we can."],
+    },
+  },
+];
+
+/* Diacritic-insensitive lowercase, for matching free-typed questions. */
+function normalizeText(s) {
+  return (s || "").toLowerCase()
+    .replace(/č|ć/g, "c").replace(/ž/g, "z").replace(/š/g, "s").replace(/đ/g, "d")
+    .replace(/\s+/g, " ").trim();
+}
+/* Score each FAQ entry by how many keyword stems appear in the text; return the
+   best match, or null when nothing matches (caller shows the topic list). */
+function matchFaq(text) {
+  const t = normalizeText(text);
+  if (!t) return null;
+  let best = null, bestScore = 0;
+  for (const item of HELP_FAQ) {
+    let score = 0;
+    for (const k of item.kw) if (t.includes(normalizeText(k))) score += 1;
+    if (score > bestScore) { bestScore = score; best = item; }
+  }
+  return bestScore > 0 ? best : null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -2758,6 +3016,164 @@ function ConfigScreen({ c, isDark, setIsDark, lang, setLang }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  HelpBot — floating "?" FAQ assistant (renders over every screen)   */
+/* ------------------------------------------------------------------ */
+
+function HelpBot({ c, lang, bp }) {
+  const isDesktop = bp === "desktop";
+  const [open, setOpen] = useState(false);
+  const [thread, setThread] = useState([]); // { role:'bot'|'user', lines:[...] }
+  const [input, setInput] = useState("");
+  const [typing, setTyping] = useState(false);
+  const scrollRef = useRef(null);
+  const timerRef = useRef(null);
+
+  const pick = (obj) => (lang === "hr" ? obj.hr : obj.en);
+  const suggestions = HELP_FAQ.filter((f) => f.id !== "support").slice(0, 6);
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  useEffect(() => {
+    if (open && thread.length === 0) {
+      setThread([{ role: "bot", lines: [tr("Hi! I'm here to help you use ORDIORA. Ask me anything, or pick a question below.")], chips: true }]);
+    }
+  }, [open]);
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [thread, typing]);
+
+  const answer = (item, labelText) => {
+    setThread((prev) => [...prev, { role: "user", lines: [labelText] }]);
+    setInput("");
+    setTyping(true);
+    timerRef.current = setTimeout(() => {
+      setTyping(false);
+      if (item) {
+        setThread((prev) => [...prev, { role: "bot", lines: pick(item.a) }]);
+      } else {
+        setThread((prev) => [...prev, { role: "bot", lines: [tr("I'm not sure I understood that. Try one of these questions:")], chips: true }]);
+      }
+    }, 480);
+  };
+
+  const onSend = () => {
+    const text = input.trim();
+    if (!text || typing) return;
+    answer(matchFaq(text), text);
+  };
+  const askChip = (item) => { if (!typing) answer(item, pick(item.q)); };
+
+  const panelW = isDesktop ? 380 : undefined;
+  const btnBottom = isDesktop
+    ? "calc(20px + env(safe-area-inset-bottom, 0px))"
+    : "calc(84px + env(safe-area-inset-bottom, 0px))";
+
+  const Chips = () => (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 10 }}>
+      {suggestions.map((f) => (
+        <button key={f.id} onClick={() => askChip(f)} style={{
+          background: c.surfaceAlt, color: c.text, border: `1px solid ${c.border}`, borderRadius: 999,
+          padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", textAlign: "left",
+          fontFamily: fontStack().body,
+        }}>{pick(f.q)}</button>
+      ))}
+    </div>
+  );
+
+  return (
+    <>
+      <style>{`
+        @keyframes helpbot-in { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
+        @keyframes helpbot-dot { 0%,60%,100% { opacity:.25; } 30% { opacity:1; } }
+      `}</style>
+
+      {!open && (
+        <button aria-label={tr("Help")} onClick={() => setOpen(true)} style={{
+          position: "fixed", right: 20, bottom: btnBottom, zIndex: 95,
+          width: 54, height: 54, borderRadius: 999, background: c.cta, color: c.ctaText,
+          border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: "0 10px 30px -8px rgba(0,0,0,.45)",
+        }}>
+          <HelpCircle size={26} />
+        </button>
+      )}
+
+      {open && (
+        <div style={{
+          position: "fixed", zIndex: 95, right: isDesktop ? 20 : 12, left: isDesktop ? "auto" : 12,
+          bottom: isDesktop ? "calc(20px + env(safe-area-inset-bottom, 0px))" : "calc(12px + env(safe-area-inset-bottom, 0px))",
+          width: panelW, maxWidth: "calc(100vw - 24px)",
+          height: isDesktop ? "min(560px, 72vh)" : "min(72dvh, 620px)",
+          background: c.surface, border: `1px solid ${c.border}`, borderRadius: 20,
+          boxShadow: "0 24px 60px -12px rgba(0,0,0,.5)", display: "flex", flexDirection: "column",
+          overflow: "hidden", fontFamily: fontStack().body, animation: "helpbot-in .22s ease",
+        }}>
+          {/* header */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 14px 12px", borderBottom: `1px solid ${c.border}` }}>
+            <div style={{ width: 34, height: 34, borderRadius: 11, background: c.surfaceAlt, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Sparkles size={18} color={c.text} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: fontStack().display, fontSize: 17, fontWeight: 700, color: c.text, lineHeight: 1.1 }}>{tr("Ordiora Assistant")}</div>
+              <div style={{ fontSize: 11.5, color: c.textFaint }}>{tr("Answers about the app")}</div>
+            </div>
+            <button aria-label="Close" onClick={() => setOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, padding: 4 }}>
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* messages */}
+          <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "14px", display: "flex", flexDirection: "column", gap: 10 }}>
+            {thread.map((m, i) => (
+              <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "88%" }}>
+                <div style={{
+                  background: m.role === "user" ? c.cta : c.surfaceAlt,
+                  color: m.role === "user" ? c.ctaText : c.text,
+                  border: m.role === "user" ? "none" : `1px solid ${c.border}`,
+                  borderRadius: 16, padding: "10px 13px", fontSize: 13.5, lineHeight: 1.5, whiteSpace: "pre-wrap",
+                }}>
+                  {m.lines.map((ln, j) => <div key={j}>{ln}</div>)}
+                </div>
+                {m.chips && <Chips />}
+              </div>
+            ))}
+            {typing && (
+              <div style={{ alignSelf: "flex-start" }}>
+                <div style={{ background: c.surfaceAlt, border: `1px solid ${c.border}`, borderRadius: 16, padding: "12px 14px", display: "flex", gap: 4 }}>
+                  {[0, 1, 2].map((d) => (
+                    <span key={d} style={{ width: 6, height: 6, borderRadius: 999, background: c.textSub, display: "inline-block", animation: `helpbot-dot 1.1s ${d * 0.15}s infinite` }} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* input */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px calc(10px + env(safe-area-inset-bottom, 0px))", borderTop: `1px solid ${c.border}` }}>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") onSend(); }}
+              placeholder={tr("Ask about the app…")}
+              style={{
+                flex: 1, minWidth: 0, background: c.inputBg, color: c.text, border: `1px solid ${c.border}`,
+                borderRadius: 12, padding: "11px 13px", fontSize: 16, fontFamily: fontStack().body, outline: "none",
+              }}
+            />
+            <button aria-label={tr("Send")} onClick={onSend} disabled={!input.trim() || typing} style={{
+              width: 42, height: 42, flexShrink: 0, borderRadius: 12, background: c.cta, color: c.ctaText,
+              border: "none", cursor: input.trim() && !typing ? "pointer" : "default", opacity: input.trim() && !typing ? 1 : 0.5,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Send size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  App root                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -3200,6 +3616,8 @@ export default function App() {
       {newRecovery && (
         <RecoveryCodeModal c={c} code={newRecovery} restaurant={restaurant} onClose={() => setNewRecovery(null)} />
       )}
+
+      <HelpBot c={c} lang={lang} bp={bp} />
     </div>
   );
 }
