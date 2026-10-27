@@ -50,3 +50,8 @@ create policy "anon full access to kv_store"
   to anon
   using (true)
   with check (true);
+
+-- Admin panel + error reporting tables (error_logs, restaurant_status,
+-- admin_history, admin_notes, admin_login_attempts, admin_impersonations):
+-- see supabase/migrations/20261027120000_admin_panel.sql — run it once, after
+-- this file.

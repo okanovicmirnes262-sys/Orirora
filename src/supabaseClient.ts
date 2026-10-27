@@ -26,3 +26,26 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
 /* Name of the key/value table that backs all shared (cloud-synced) data.
    See supabase/schema.sql for the table definition. */
 export const KV_TABLE = "kv_store";
+
+/* POST to a Supabase Edge Function. Plain fetch (not functions.invoke) so a
+   non-2xx response still gives us its JSON `error` message. Throws an Error
+   carrying `status` on failure. */
+export async function callEdgeFunction(name: string, body: unknown, headers: Record<string, string> = {}) {
+  if (!url || !anonKey) throw Object.assign(new Error("Supabase nije konfiguriran."), { status: 0 });
+  let res: Response;
+  try {
+    res = await fetch(`${url}/functions/v1/${name}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: anonKey, Authorization: `Bearer ${anonKey}`, ...headers },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    throw Object.assign(new Error("Nema veze sa serverom."), { status: 0 });
+  }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const msg = (data && (data.error || data.message)) || `Greška ${res.status}`;
+    throw Object.assign(new Error(msg), { status: res.status });
+  }
+  return data;
+}

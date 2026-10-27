@@ -83,6 +83,31 @@ Still open for a public production deployment: the `kv_store` policy grants the
 Security policies accordingly. The schema file documents this in more detail.
 Password hashing requires a secure context (https or localhost).
 
+## Admin panel (`/admin`)
+
+An internal support panel at `https://<your-domain>/admin` — restaurants,
+their data and accounts, the error log, and a full history of admin edits.
+
+- **Backend:** the `admin` Edge Function ([`supabase/functions/admin`](supabase/functions/admin/index.ts))
+  plus the tables in [`supabase/migrations/20261027120000_admin_panel.sql`](supabase/migrations/20261027120000_admin_panel.sql).
+  The function holds the service_role key; the browser only gets a 12-hour
+  session token after the admin password is checked server-side (5 failed
+  attempts per IP → 15-minute lockout).
+- **Setup:** run the migration SQL in the Supabase SQL Editor, deploy the
+  function, and set the secret `ADMIN_PASSWORD` (8+ characters) under
+  Dashboard → Edge Functions → Secrets. Changing it signs out every admin session.
+- **Error reporting:** the app sends JS errors, crashes and failed Supabase
+  reads/writes to `error_logs` (anon may only insert), with the restaurant,
+  user and screen attached. Users can also send a note via "Report a problem"
+  (HelpBot and Settings).
+- **Safety:** every data edit stores the previous value in `admin_history`
+  and can be undone from the panel, including deleting a whole restaurant.
+  "Sign in as owner" uses a one-time link valid for 2 minutes and shows a red
+  admin-mode banner; edits made there are real.
+- **Routing:** [`vercel.json`](vercel.json) rewrites every path to `index.html`
+  so `/admin` works on Vercel; the admin code is lazy-loaded, so restaurants
+  never download it.
+
 ## Mobile
 
 The UI is designed for phones and adapts up to a 520px content column on

@@ -6,13 +6,14 @@ import {
   Settings as SettingsIcon, ArrowDownRight, Wine, MoreHorizontal,
   CircleUser, Loader2, ChevronDown, Trash2, Copy, CheckCircle2, Store,
   KeyRound, Search, Eye, EyeOff, Pencil, Minus,
-  HelpCircle, X, Send, Sparkles
+  HelpCircle, X, Send, Sparkles, Bug, ShieldAlert
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar,
   CartesianGrid, Cell
 } from "recharts";
-import { supabase, isSupabaseConfigured, KV_TABLE } from "./supabaseClient";
+import { supabase, isSupabaseConfigured, KV_TABLE, callEdgeFunction } from "./supabaseClient";
+import { reportError, setErrorContext } from "./errorReporter";
 
 /* ------------------------------------------------------------------ */
 /*  i18n — Hrvatski / English                                          */
@@ -25,6 +26,20 @@ import { supabase, isSupabaseConfigured, KV_TABLE } from "./supabaseClient";
 let LANG = "hr";
 
 const HR = {
+  // — Problem reports / suspension / admin mode —
+  "Report a problem": "Prijavi problem",
+  "Describe what you were doing and what went wrong. We'll attach the screen and restaurant automatically.": "Opišite što ste radili i što je pošlo po zlu. Ekran i restoran priložit ćemo automatski.",
+  "What happened?": "Što se dogodilo?",
+  "Send report": "Pošalji prijavu",
+  "Thanks — your report was sent.": "Hvala — prijava je poslana.",
+  "Couldn't send the report. Check your connection and try again.": "Prijava nije poslana. Provjerite vezu i pokušajte ponovno.",
+  "Something went wrong": "Nešto je pošlo po zlu",
+  "The app hit an unexpected error. It has been reported automatically.": "Aplikacija je naišla na neočekivanu grešku. Greška je automatski prijavljena.",
+  "Reload": "Učitaj ponovno",
+  "Access suspended": "Pristup je obustavljen",
+  "This restaurant's access is suspended. Contact ORDIORA support.": "Pristup ovom restoranu je obustavljen. Javite se ORDIORA podršci.",
+  "Help & support": "Pomoć i podrška",
+  "Found a bug or something isn't working? Let us know.": "Pronašli ste grešku ili nešto ne radi? Javite nam.",
   // — Auth / login / recovery —
   "Sign in to your restaurant.": "Prijavite se u svoj restoran.",
   "Reset your password.": "Ponovno postavite lozinku.",
@@ -344,7 +359,7 @@ const HR = {
   "Show topics": "Prikaži teme",
 };
 
-function tr(s) {
+export function tr(s) {
   if (LANG !== "hr") return s;
   return Object.prototype.hasOwnProperty.call(HR, s) ? HR[s] : s;
 }
@@ -641,7 +656,7 @@ function useBreakpoint() {
    graphite ink, and a single graded-grey scale. The accent keys keep their
    names for compatibility but all resolve to greys so the UI reads mono.
    `accent` is the one restrained near-black used sparingly for emphasis. */
-const PALETTE = {
+export const PALETTE = {
   light: {
     bg: "#F4F3F0", surface: "#FFFFFF", surfaceAlt: "#F6F5F2",
     border: "#E6E4DE", borderStrong: "#D6D4CC",
@@ -669,11 +684,11 @@ const ROLE_META = {
 };
 
 // Safe lookup — a stale/unknown role from cloud data must not crash the UI.
-function roleMeta(role) {
+export function roleMeta(role) {
   return ROLE_META[role] || { label: role || "Staff", accentKey: "textFaint", icon: CircleUser };
 }
 
-const fontStack = () => ({
+export const fontStack = () => ({
   display: "'Cormorant Garamond', 'Fraunces', 'Georgia', serif",
   body: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
 });
@@ -703,7 +718,7 @@ function OrdioraLogo({ c, size = 120, color, showText = true }) {
 }
 
 /* Compact ring-only monogram for headers / nav */
-function OrdioraMark({ c, size = 34, color }) {
+export function OrdioraMark({ c, size = 34, color }) {
   const stroke = color || c.text;
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none" style={{ display: "block" }}>
@@ -726,7 +741,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 /* Copy to clipboard; resolves only if it actually succeeded (writeText is async
    and is undefined on insecure/unsupported contexts) so the UI never falsely
    claims "Copied". */
-function copyToClipboard(text) {
+export function copyToClipboard(text) {
   try {
     const p = navigator.clipboard && navigator.clipboard.writeText(String(text == null ? "" : text));
     return p && typeof p.then === "function" ? p : Promise.reject(new Error("no clipboard"));
@@ -772,7 +787,7 @@ function generateEmail(name, restaurantSlug, existing) {
   return candidate;
 }
 
-function generatePassword() {
+export function generatePassword() {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
   let out = "";
   for (let i = 0; i < 10; i++) out += chars[Math.floor(Math.random() * chars.length)];
@@ -793,7 +808,7 @@ function generateUniquePassword(accounts) {
 /* A restaurant-level recovery code the owner saves to reset their own password
    if it's forgotten (no email server, so this is the fallback). Grouped for
    readability; compared without the dash. */
-function generateRecoveryCode() {
+export function generateRecoveryCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";
   for (let i = 0; i < 8; i++) out += chars[Math.floor(Math.random() * chars.length)];
@@ -836,7 +851,7 @@ async function derivePwHash(plain, saltBytes) {
   return bytesToHex(new Uint8Array(bits));
 }
 /* Returns { pwSalt, pwHash } hex for a fresh random salt. */
-async function hashPassword(plain) {
+export async function hashPassword(plain) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const pwHash = await derivePwHash(plain, salt);
   return { pwSalt: bytesToHex(salt), pwHash };
@@ -988,6 +1003,7 @@ async function loadKey(key, fallback, shared) {
       .maybeSingle();
     if (error) {
       console.error("Supabase load failed for", key, error.message);
+      reportError("load_failed", error.message, { action: key });
       return fallback;
     }
     // `value` is a jsonb column, already decoded by supabase-js.
@@ -995,6 +1011,7 @@ async function loadKey(key, fallback, shared) {
     return fallback;
   } catch (e) {
     console.error("Supabase load threw for", key, e);
+    reportError("load_failed", e && e.message ? e.message : String(e), { action: key });
     return fallback;
   }
 }
@@ -1003,16 +1020,28 @@ async function saveKey(key, value, shared) {
   if (!shared) { saveLocal(key, value); return; }
   if (!supabase) return;
   try {
-    if (value === null || value === undefined) {
-      await supabase.from(KV_TABLE).delete().eq("key", key);
-    } else {
-      const { error } = await supabase
-        .from(KV_TABLE)
-        .upsert({ key, value }, { onConflict: "key" });
-      if (error) console.error("Supabase save failed for", key, error.message);
+    const { error } = value === null || value === undefined
+      ? await supabase.from(KV_TABLE).delete().eq("key", key)
+      : await supabase.from(KV_TABLE).upsert({ key, value }, { onConflict: "key" });
+    if (error) {
+      console.error("Supabase save failed for", key, error.message);
+      reportError("save_failed", error.message, { action: key });
     }
   } catch (e) {
     console.error("Supabase save threw for", key, e);
+    reportError("save_failed", e && e.message ? e.message : String(e), { action: key });
+  }
+}
+
+/* Suspension flag set from /admin. Fails open: if the status can't be read
+   (offline, table missing) the restaurant is treated as active. */
+async function loadRestaurantStatus(slug) {
+  if (!supabase || !slug) return null;
+  try {
+    const { data, error } = await supabase.from("restaurant_status").select("suspended, message").eq("slug", slug).maybeSingle();
+    return error ? null : data;
+  } catch (e) {
+    return null;
   }
 }
 
@@ -1474,7 +1503,8 @@ function LoginScreen({ c, isDark, setIsDark, lang, setLang, onLogin, onRecover, 
     setLoading(true);
     const res = await onLogin(name, password, remember);
     setLoading(false);
-    if (!res || !res.ok) setError(tr("Incorrect restaurant name or password."));
+    if (res && res.suspended) setError(res.message || tr("This restaurant's access is suspended. Contact ORDIORA support."));
+    else if (!res || !res.ok) setError(tr("Incorrect restaurant name or password."));
   };
 
   const submitRecover = async () => {
@@ -2689,6 +2719,7 @@ function SettingsScreen({ c, user, isDark, setIsDark, lang, setLang, restaurant,
     setTimeout(() => setSavedReview(false), 1500);
   };
 
+  const [reportOpen, setReportOpen] = useState(false);
   const [curPass, setCurPass] = useState("");
   const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
@@ -2856,6 +2887,13 @@ function SettingsScreen({ c, user, isDark, setIsDark, lang, setLang, restaurant,
           <div>{tr("Role")}: {tr(roleMeta(user.role).label)}</div>
         </div>
       </SectionCard>
+
+      <SectionCard c={c} style={{ marginTop: 16 }}>
+        <div style={{ fontWeight: 700, color: c.text, marginBottom: 4 }}>{tr("Help & support")}</div>
+        <div style={{ fontSize: 12.5, color: c.textFaint, marginBottom: 14 }}>{tr("Found a bug or something isn't working? Let us know.")}</div>
+        <GhostButton c={c} full onClick={() => setReportOpen(true)}><Bug size={16} /> {tr("Report a problem")}</GhostButton>
+      </SectionCard>
+      {reportOpen && <ReportProblemModal c={c} onClose={() => setReportOpen(false)} />}
     </div>
   );
 }
@@ -3016,12 +3054,91 @@ function ConfigScreen({ c, isDark, setIsDark, lang, setLang }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Problem reports, suspension and admin-mode chrome                  */
+/* ------------------------------------------------------------------ */
+
+/* "Report a problem" — a free-text note sent to error_logs. The restaurant,
+   user and current screen are attached by the error reporter's context. */
+export function ReportProblemModal({ c, onClose, defaultNote = "" }) {
+  const [note, setNote] = useState(defaultNote);
+  const [state, setState] = useState("idle"); // idle | sending | sent | failed
+  const send = async () => {
+    if (!note.trim() || state === "sending") return;
+    setState("sending");
+    const ok = await reportError("user_report", note.trim().split("\n")[0].slice(0, 200), { note: note.trim() });
+    setState(ok ? "sent" : "failed");
+  };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 120, padding: 20 }}>
+      <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
+      <div style={{ background: c.surface, borderRadius: 24, padding: 24, width: "100%", maxWidth: 420, fontFamily: fontStack().body }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+          <Bug size={20} color={c.text} />
+          <div style={{ fontWeight: 700, fontSize: 18, color: c.text, flex: 1 }}>{tr("Report a problem")}</div>
+          <button aria-label="Close" onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, padding: 4 }}><X size={20} /></button>
+        </div>
+        {state === "sent" ? (
+          <>
+            <div style={{ fontSize: 14, color: c.textSub, margin: "12px 0 18px", lineHeight: 1.5 }}>{tr("Thanks — your report was sent.")}</div>
+            <PrimaryButton c={c} full onClick={onClose}>{tr("Done")}</PrimaryButton>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 13, color: c.textSub, marginBottom: 14, lineHeight: 1.5 }}>{tr("Describe what you were doing and what went wrong. We'll attach the screen and restaurant automatically.")}</div>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder={tr("What happened?")} rows={5} maxLength={4000}
+              style={{ width: "100%", background: c.inputBg, color: c.text, border: `1px solid ${c.border}`, borderRadius: 12, padding: "11px 13px", fontSize: 16, fontFamily: fontStack().body, outline: "none", resize: "vertical", marginBottom: 12 }} />
+            {state === "failed" && <div style={{ fontSize: 12.5, color: c.rose, marginBottom: 12 }}>{tr("Couldn't send the report. Check your connection and try again.")}</div>}
+            <PrimaryButton c={c} full disabled={!note.trim() || state === "sending"} onClick={send}>
+              {state === "sending" ? <Loader2 size={16} className="spin" /> : <Send size={16} />} {tr("Send report")}
+            </PrimaryButton>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SuspendedScreen({ c, message, onSignOut }) {
+  return (
+    <div style={{ minHeight: "100dvh", background: c.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, fontFamily: fontStack().body }}>
+      <ShieldAlert size={36} color={c.text} />
+      <div style={{ fontFamily: fontStack().display, fontSize: 26, fontWeight: 600, color: c.text, textAlign: "center" }}>{tr("Access suspended")}</div>
+      <div style={{ color: c.textSub, fontSize: 14.5, textAlign: "center", maxWidth: 340, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+        {message || tr("This restaurant's access is suspended. Contact ORDIORA support.")}
+      </div>
+      <GhostButton c={c} onClick={onSignOut}>{tr("Sign out")}</GhostButton>
+    </div>
+  );
+}
+
+/* Shown while an admin is signed in as a restaurant's owner from /admin.
+   Always in Croatian — only the admin ever sees it. */
+function ImpersonationBanner({ name }) {
+  return (
+    <div style={{
+      position: "sticky", top: 0, zIndex: 130, background: "#B42318", color: "#FFFFFF",
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+      padding: "calc(8px + env(safe-area-inset-top, 0px)) 14px 8px", fontSize: 13, fontWeight: 600, fontFamily: fontStack().body,
+    }}>
+      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        ADMIN NAČIN — gledaš kao {name}. Izmjene su stvarne.
+      </span>
+      <button onClick={() => window.location.replace("/admin")} style={{
+        flexShrink: 0, background: "rgba(255,255,255,0.18)", color: "#FFFFFF", border: "1px solid rgba(255,255,255,0.4)",
+        borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer",
+      }}>Izađi</button>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  HelpBot — floating "?" FAQ assistant (renders over every screen)   */
 /* ------------------------------------------------------------------ */
 
 function HelpBot({ c, lang, bp }) {
   const isDesktop = bp === "desktop";
   const [open, setOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [thread, setThread] = useState([]); // { role:'bot'|'user', lines:[...] }
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
@@ -3116,6 +3233,9 @@ function HelpBot({ c, lang, bp }) {
               <div style={{ fontFamily: fontStack().display, fontSize: 17, fontWeight: 700, color: c.text, lineHeight: 1.1 }}>{tr("Ordiora Assistant")}</div>
               <div style={{ fontSize: 11.5, color: c.textFaint }}>{tr("Answers about the app")}</div>
             </div>
+            <button aria-label={tr("Report a problem")} title={tr("Report a problem")} onClick={() => setReportOpen(true)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, padding: 4 }}>
+              <Bug size={19} />
+            </button>
             <button aria-label="Close" onClick={() => setOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: c.textSub, padding: 4 }}>
               <X size={20} />
             </button>
@@ -3169,6 +3289,7 @@ function HelpBot({ c, lang, bp }) {
           </div>
         </div>
       )}
+      {reportOpen && <ReportProblemModal c={c} onClose={() => setReportOpen(false)} />}
     </>
   );
 }
@@ -3200,6 +3321,9 @@ export default function App() {
   const [notifications, setNotifications] = useState([]);
   const [now, setNow] = useState(() => Date.now());  // minute tick for reservation expiry (device-local)
   const [notifSeenAt, setNotifSeenAt] = useState(0);  // device-local "notifications seen up to" timestamp
+  const [suspended, setSuspended] = useState(null);   // { message } when /admin suspended this restaurant
+  const [impersonating, setImpersonating] = useState(null); // { name } while an admin is signed in as the owner
+  const [impersonationError, setImpersonationError] = useState("");
 
   // Holds the exact object references most recently hydrated from the cloud, per
   // slice. A persist effect saves only when its slice DIFFERS from this snapshot
@@ -3267,10 +3391,16 @@ export default function App() {
     // login-only. Creating a restaurant is reachable ONLY via this param, so the
     // bare/login URL can't be used to open a free account. Strip it afterwards so
     // a refresh doesn't reopen setup.
+    // `?impersonate=<token>` comes from /admin ("sign in as owner"). The token is
+    // single-use and expires after 2 minutes. This session is kept in memory
+    // only — nothing is written to this device's workspace / "remember me".
+    let impersonateToken = null;
     try {
-      const mode = new URLSearchParams(window.location.search).get("mode");
+      const params = new URLSearchParams(window.location.search);
+      const mode = params.get("mode");
+      impersonateToken = params.get("impersonate");
       if (mode === "signup") setCreatingNew(true);
-      if (mode) window.history.replaceState({}, "", window.location.pathname);
+      if (mode || impersonateToken) window.history.replaceState({}, "", window.location.pathname);
     } catch (e) { /* no-op */ }
     (async () => {
       const [ws, reg, themePref, langPref] = await Promise.all([
@@ -3282,9 +3412,24 @@ export default function App() {
       setRegistry(reg);
       if (themePref) setIsDark(themePref.isDark);
       if (langPref === "hr" || langPref === "en") { setLang(langPref); LANG = langPref; }
+      if (impersonateToken) {
+        try {
+          const res = await callEdgeFunction("admin", { action: "redeem_impersonation", token: impersonateToken });
+          await loadWorkspaceData(res.workspace.slug);
+          setWorkspace(res.workspace);
+          setUser(res.account);
+          setImpersonating({ name: res.workspace.name });
+        } catch (e) {
+          setImpersonationError(e.message || "Ulaz kao vlasnik nije uspio.");
+        }
+        setLoaded(true);
+        return;
+      }
       if (ws && ws.slug) {
         await loadWorkspaceData(ws.slug);
         setWorkspace(ws);
+        const status = await loadRestaurantStatus(ws.slug);
+        if (status && status.suspended) setSuspended({ message: status.message });
       }
       setLoaded(true);
     })();
@@ -3328,6 +3473,16 @@ export default function App() {
   LANG = lang;
   const c = PALETTE[isDark ? "dark" : "light"];
   const bp = useBreakpoint();
+
+  // Keep the error reporter's context current so every report says where it came from.
+  useEffect(() => {
+    setErrorContext({
+      slug: workspace ? workspace.slug : null,
+      email: user ? user.email : null,
+      role: user ? (impersonating ? `admin→${user.role}` : user.role) : null,
+      view: user ? view : creatingNew ? "setup" : "login",
+    });
+  }, [workspace, user, view, creatingNew, impersonating]);
 
   const notify = (type, text) => {
     // Cap history so the blob (and every write/load of it) can't grow unbounded.
@@ -3375,6 +3530,9 @@ export default function App() {
     let match = null;
     for (const a of accs) { if (await verifyPassword(password, a)) { match = a; break; } }
     if (!match) return { ok: false };
+    // Checked only after the password matched, so suspension isn't revealed to strangers.
+    const status = await loadRestaurantStatus(entry.slug);
+    if (status && status.suspended) return { ok: false, suspended: true, message: status.message };
     // loadWorkspaceData migrates legacy plaintext → hashed and returns the result;
     // pick the up-to-date (hashed) account object from it so state stays consistent.
     const migrated = await loadWorkspaceData(entry.slug);
@@ -3411,6 +3569,7 @@ export default function App() {
   };
 
   const switchWorkspace = () => {
+    if (impersonating) { window.location.replace("/admin"); return; }
     setUser(null);
     setWorkspace(null);
     setRestaurant(null);
@@ -3421,13 +3580,17 @@ export default function App() {
     setChat({ general: [], floor: [], kitchen: [] });
     setNotifications([]);
     setView("dashboard");
+    setSuspended(null);
     saveKey("restaurantos:workspace", null, false);
     saveKey("restaurantos:remembered", null, false);
   };
 
   const signOut = () => {
+    // In admin mode the device's own "remember me" belongs to someone else — leave it alone.
+    if (impersonating) { window.location.replace("/admin"); return; }
     setUser(null);
     setView("dashboard");
+    setSuspended(null);
     saveKey("restaurantos:remembered", null, false);
   };
 
@@ -3493,6 +3656,16 @@ export default function App() {
     );
   }
 
+  if (impersonationError) {
+    return (
+      <div style={{ minHeight: "100dvh", background: c.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, fontFamily: fontStack().body }}>
+        <ShieldAlert size={32} color={c.text} />
+        <div style={{ color: c.text, fontSize: 15, textAlign: "center", maxWidth: 320, lineHeight: 1.5 }}>{impersonationError}</div>
+        <PrimaryButton c={c} onClick={() => window.location.replace("/admin")}>Natrag u admin</PrimaryButton>
+      </div>
+    );
+  }
+
   if (creatingNew) {
     return (
       <SetupWizard c={c} isDark={isDark} setIsDark={setIsDark} lang={lang} setLang={setLang} onComplete={completeSetup}
@@ -3502,6 +3675,10 @@ export default function App() {
 
   if (!user) {
     return <LoginScreen c={c} isDark={isDark} setIsDark={setIsDark} lang={lang} setLang={setLang} onLogin={loginWithNameAndPassword} onRecover={recoverOwnerPassword} onCreateNew={() => setCreatingNew(true)} />;
+  }
+
+  if (suspended && !impersonating) {
+    return <SuspendedScreen c={c} message={suspended.message} onSignOut={signOut} />;
   }
 
   // Signed in but the restaurant record didn't load (e.g. a transient read
@@ -3531,6 +3708,8 @@ export default function App() {
   const activeView = isDesktop && view === "more" ? "dashboard" : view;
   // Content column widths per breakpoint (desktop uses a sidebar + wider main).
   const contentMax = isDesktop ? 960 : bp === "tablet" ? 760 : 520;
+  // The admin-mode banner takes ~36px off the top of the locked desktop shell.
+  const shellHeight = impersonating ? "calc(100dvh - 36px)" : "100dvh";
 
   const screens = (
     <div style={{ flex: 1 }}>
@@ -3580,15 +3759,17 @@ export default function App() {
         input[type="time"]::-webkit-datetime-edit { text-align: left; }
       `}</style>
 
+      {impersonating && <ImpersonationBanner name={impersonating.name} />}
+
       {isDesktop ? (
         // Desktop app shell: lock the viewport (height 100dvh, no page scroll)
         // and let the CONTENT AREA scroll on its own. That way the mouse wheel
         // scrolls the content wherever the cursor is — not only over the
         // scrollbar — while the sidebar and top bar stay put.
-        <div style={{ display: "flex", alignItems: "stretch", width: "100%", height: "100dvh", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "stretch", width: "100%", height: shellHeight, overflow: "hidden" }}>
           <SideNav view={activeView} setView={setView} c={c} user={user} restaurant={restaurant}
             isDark={isDark} setIsDark={setIsDark} onSignOut={signOut} onSwitchWorkspace={switchWorkspace} />
-          <div style={{ flex: 1, minWidth: 0, height: "100dvh", display: "flex", flexDirection: "column" }}>
+          <div style={{ flex: 1, minWidth: 0, height: shellHeight, display: "flex", flexDirection: "column" }}>
             <TopBar c={c} title={tr(titleMap[activeView])} isDark={isDark} setIsDark={setIsDark}
               notifications={notifications} notifOpen={notifOpen} unreadCount={unreadCount} onOpenNotifications={toggleNotifications} notifSeenAt={notifSeenAt} />
             <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
